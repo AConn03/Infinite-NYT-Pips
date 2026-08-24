@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NYT Pips - Unlimited Domino Logic Puzzles</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        nyt: {
+                            bg: '#f4f5f7',
+                            card: '#ffffff',
+                            board: '#e8e5df',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --cell-size: 64px;
+        }
+
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            background-color: #f4f5f7;
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        /* Domino & Pips Styling */
+        .domino-tile {
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+            touch-action: none;
+            background-color: #ffffff;
+            border-radius: 8px;
+            /* Authentic 3D look with clean edges matching reference */
+            box-shadow: 0 3px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 4px 6px rgba(0, 0, 0, 0.05);
+            position: relative;
+            z-index: 10;
+            box-sizing: border-box;
+        }
+        
+        .domino-tile.dragging {
+            z-index: 50 !important;
+            transform: scale(1.15) translateY(-4px);
+            box-shadow: 0 8px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 12px 20px rgba(0, 0, 0, 0.15);
+            opacity: 0.95;
+        }
+
+        .domino-tile.selected {
+            box-shadow: 0 0 0 3px #3b82f6, 0 8px 15px rgba(59, 130, 246, 0.3);
+            transform: translateY(-4px) scale(1.05);
+        }
+
+        /* Clean dividers */
+        .domino-divider-v { width: 1px; height: 100%; background-color: #cbd5e1; }
+        .domino-divider-h { width: 100%; height: 1px; background-color: #cbd5e1; }
+
+        /* Hardcoded absolute positioning for flawless scaling */
+        .pip-face {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .pip {
+            position: absolute;
+            width: 24%;
+            height: 24%;
+            border-radius: 50%;
+            background-color: #4b5563; /* Tailwind slate-600 */
+            transform: translate(-50%, -50%);
+        }
+
+        /* Board Styling */
+        #board-container {
+            background-color: #f0ebe1; /* Canvas color */
+            border-radius: 16px;
+            padding: 16px;
+            display: inline-block;
+        }
+
+        .board-grid {
+            display: grid;
+            gap: 0px; /* Cells touch each other */
+            position: relative;
+        }
+
+        .cell-item {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .cell-empty {
+            background: transparent !important;
+            border: none !important;
+            pointer-events: none;
+        }
+
+        /* Region Constraint Diamond Badge */
+        .region-badge {
+            position: absolute;
+            width: calc(var(--cell-size) * 0.48);
+            height: calc(var(--cell-size) * 0.48);
+            transform: rotate(45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            bottom: calc(var(--cell-size) * -0.24);
+            right: calc(var(--cell-size) * -0.24);
+        }
+        .region-badge-inner {
+            transform: rotate(-45deg);
+            font-weight: 900;
+            font-family: 'Outfit', sans-serif;
+            font-size: calc(var(--cell-size) * 0.22);
+            color: white;
+            text-align: center;
+            line-height: 1;
+        }
+
+        /* Grid drop preview */
+        .cell-hover-valid {
+            background-color: rgba(255, 255, 255, 0.5) !important;
+            box-shadow: inset 0 0 0 2px #3b82f6;
+        }
+        .cell-hover-invalid {
+            background-color: rgba(239, 68, 68, 0.3) !important;
+            box-shadow: inset 0 0 0 2px #ef4444;
+        }
+
+        /* Animations */
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes pulse-border {
+            0% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); }
+            100% { border-color: rgba(59, 130, 246, 0.5); }
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        /* Drag container */
+        #drag-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="flex flex-col font-sans antialiased text-slate-800">
+
+    <!-- Top Header -->
+    <header class="bg-white border-b border-slate-200 shrink-0 z-30 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-display font-extrabold text-lg shadow">
+                    ::
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg tracking-tight text-slate-900 leading-none">PIPS</h1>
+                    <p class="text-[10px] text-slate-500 font-medium hidden sm:block">Domino Logic Puzzle</p>
+                </div>
+            </div>
+
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-1 sm:gap-2">
+                <button id="btn-sound" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="Toggle Sound">
+                    <i class="fa-solid fa-volume-high text-xs"></i>
+                </button>
+                <button id="btn-how-to-play" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="How to Play">
+                    <i class="fa-solid fa-circle-question text-xs"></i>
+                </button>
+                <button id="btn-stats" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="Statistics">
+                    <i class="fa-solid fa-chart-column text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 min-h-0 max-w-6xl w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 flex flex-col overflow-hidden">
+        
+        <!-- Controls & Level Selector Bar -->
+        <div class="bg-white rounded-2xl p-2 sm:p-3 shadow-sm border border-slate-200 mb-2 shrink-0 flex flex-wrap items-center justify-between gap-2">
+            <!-- Difficulty Selector Tabs -->
+            <div class="flex bg-slate-100 p-1 rounded-xl gap-1 text-xs font-semibold">
+                <button data-diff="easy" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Easy</button>
+                <button data-diff="medium" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Medium</button>
+                <button data-diff="hard" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Hard</button>
+            </div>
+
+            <!-- Timer & Actions -->
+            <div class="flex items-center gap-2 ml-auto">
+                <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-xl text-slate-700 font-mono text-xs md:text-sm font-bold">
+                    <i class="fa-regular fa-clock text-slate-400"></i>
+                    <span id="timer-display">00:00</span>
+                </div>
+                <button id="btn-reset" class="w-8 h-8 sm:w-auto sm:px-3 sm:py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5" title="Reset Current Board">
+                    <i class="fa-solid fa-rotate-right"></i> <span class="hidden sm:inline">Reset</span>
+                </button>
+                <button id="btn-new-game" class="px-2 sm:px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">New Level</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Game Work Area -->
+        <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 items-stretch overflow-hidden">
+            
+            <!-- Left Panel: Puzzle Grid -->
+            <div class="w-full flex-1 lg:w-3/5 xl:w-2/3 bg-white rounded-2xl p-2 md:p-4 shadow-sm border border-slate-200 flex flex-col items-center justify-center min-h-0 relative overflow-hidden">
+                <div id="board-scroll-container" class="w-full h-full flex items-center justify-center overflow-hidden p-1">
+                    <div id="board-container" class="relative transition-all duration-200">
+                        <!-- Dynamic Grid will be injected here -->
+                    </div>
+                </div>
+
+                <div id="status-toast" class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-medium bg-slate-800 text-white px-3 py-1 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-40 whitespace-nowrap">
+                    Message
+                </div>
+            </div>
+
+            <!-- Right Panel: Tile Tray & Controls -->
+            <div class="w-full h-1/3 min-h-[140px] lg:h-full lg:w-2/5 xl:w-1/3 bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex flex-col shrink-0 lg:shrink min-h-0">
+                <div class="flex flex-col h-full min-h-0">
+                    <div class="flex items-center justify-between mb-2 border-b border-slate-100 pb-1.5 shrink-0">
+                        <h2 class="font-display font-bold text-slate-900 text-sm flex items-center gap-2">
+                            Dominoes
+                            <span id="tiles-count" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">0</span>
+                        </h2>
+                        <span class="text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                            <i class="fa-solid fa-arrows-spin mr-1"></i>Tap to rotate
+                        </span>
+                    </div>
+
+                    <!-- Domino Tiles Pool Container -->
+                    <div id="tiles-tray" class="flex-1 min-h-0 overflow-y-auto content-start flex flex-wrap gap-2 sm:gap-3 justify-center p-2 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                        <!-- Dominoes rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Hidden drag layer -->
+    <div id="drag-layer"></div>
+
+    <!-- Modal: Statistics -->
+    <div id="modal-stats" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 class="font-display font-bold text-2xl text-slate-900 mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-blue-600"></i> Statistics
+            </h3>
+            <p class="text-xs text-slate-500 mb-6">Track your lifetime puzzle performance.</p>
+
+            <div id="stats-container" class="space-y-4">
+                <!-- Stats injected dynamically -->
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                <button id="btn-reset-stats" class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">Reset Stats</button>
+                <button class="modal-close px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow hover:bg-slate-800 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: How to Play -->
+    <div id="modal-howto" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
+            <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 class="font-display font-bold text-2xl text-slate-900 mb-2">How to Play Pips</h3>
+            <p class="text-sm text-slate-600 mb-6 leading-relaxed">
+                Place all your dominoes onto the board so that every colored region follows its specific rule.
+            </p>
+
+            <div class="space-y-5 text-sm">
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">1</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Place & Rotate</strong>
+                        <p class="text-slate-600 leading-snug">Drag dominoes from the tray onto the board. <strong>Tap a domino to rotate it.</strong></p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">2</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Cross Borders</strong>
+                        <p class="text-slate-600 leading-snug">Dominoes take up two squares. A domino can cross the border between two different colored regions.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">3</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Follow the Diamond</strong>
+                        <p class="text-slate-600 leading-snug mb-2">The diamond on the corner of a region tells you the rule for <em>all</em> the domino halves placed inside that color.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">12</span> Sum must be 12</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">=</span> All numbers identical</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">≠</span> All numbers distinct</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">&lt;8</span> Sum less than 8</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="modal-close w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-base shadow-md transition-transform active:scale-95">Got it, let's play!</button>
+        </div>
+    </div>
+
+    <!-- Modal: Victory / Solved -->
+    <div id="modal-victory" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center relative transform transition-all scale-95 opacity-0" id="victory-card">
+            <div class="absolute -top-10 left-1/2 transform -translate-x-1/2">
+                <div class="w-20 h-20 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white rounded-2xl flex items-center justify-center text-4xl shadow-xl rotate-12">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+            </div>
+            
+            <h3 class="font-display font-extrabold text-3xl text-slate-900 mt-10 mb-1">Excellent!</h3>
+            <p id="victory-diff-label" class="text-xs uppercase font-bold tracking-widest text-emerald-600 mb-6">EASY PUZZLE SOLVED</p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 flex justify-around">
+                <div class="text-center">
+                    <div class="text-2xs text-slate-400 font-bold uppercase tracking-wide mb-1">Time</div>
+                    <div id="victory-time" class="font-mono text-2xl font-bold text-slate-800">01:23</div>
+                </div>
+                <div class="w-px bg-slate-200"></div>
+                <div class="text-center">
+                    <div class="text-2xs text-slate-400 font-bold uppercase tracking-wide mb-1">Best</div>
+                    <div id="victory-best" class="font-mono text-2xl font-bold text-blue-600">00:45</div>
+                </div>
+            </div>
+
+            <button id="btn-victory-next" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                Play Next Level <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Audio Effects Synthesizer using Web Audio API
+        const AudioFX = {
+            ctx: null,
+            muted: false,
+            init() {
+                try {
+                    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                } catch(e) {
+                    console.warn("Web Audio API not supported");
+                }
+            },
+            playTone(freq, type, duration, vol) {
+                if (this.muted || !this.ctx) return;
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            },
+            playClick() { this.playTone(600, 'sine', 0.05, 0.1); },
+            playSnap() { this.playTone(300, 'triangle', 0.1, 0.15); },
+            playError() { this.playTone(150, 'sawtooth', 0.15, 0.1); },
+            playRotate() { this.playTone(800, 'sine', 0.03, 0.05); },
+            playWin() {
+                if (this.muted || !this.ctx) return;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'sine', 0.4, 0.1), idx * 100);
+                });
+            }
+        };
+
+        const REGION_PALETTE = [
+            { bg: '#d4a27f', border: '#b07040', text: 'white', badge: '#d35400' }, // Orange
+            { bg: '#a3b19b', border: '#708260', text: 'white', badge: '#556b2f' }, // Olive
+            { bg: '#919db4', border: '#607090', text: 'white', badge: '#1a3b5c' }, // Blue-gray
+            { bg: '#e5a5a5', border: '#c07070', text: 'white', badge: '#d81b60' }, // Pink
+            { bg: '#9bbdbd', border: '#609090', text: 'white', badge: '#00838f' }, // Teal
+            { bg: '#bfa3c4', border: '#9060a0', text: 'white', badge: '#8e44ad' }, // Purple
+            { bg: '#e5ccb8', border: '#c0a080', text: 'white', badge: '#a0522d' }, // Tan
+        ];
+
+        const GameState = {
+            difficulty: 'easy', 
+            rows: 0,
+            cols: 0,
+            boardMask: [], 
+            board: [], 
+            regions: [], 
+            dominoes: [], 
+            selectedDominoId: null,
+            lastPlacedDominoId: null,
+            timerSeconds: 0,
+            timerInterval: null,
+            isDragging: false,
+            draggedDominoId: null,
+            stats: {
+                easy: { played: 0, won: 0, totalTime: 0, bestTime: null },
+                medium: { played: 0, won: 0, totalTime: 0, bestTime: null },
+                hard: { played: 0, won: 0, totalTime: 0, bestTime: null }
+            }
+        };
+
+        function loadStats() {
+            try {
+                const saved = localStorage.getItem('nyt_pips_stats_v3');
+                if (saved) GameState.stats = JSON.parse(saved);
+            } catch(e) {}
+        }
+
+        function saveStats() {
+            try {
+                localStorage.setItem('nyt_pips_stats_v3', JSON.stringify(GameState.stats));
+            } catch(e) {}
+        }
+
+        function saveGame() {
+            try {
+                const stateToSave = {
+                    difficulty: GameState.difficulty,
+                    rows: GameState.rows,
+                    cols: GameState.cols,
+                    boardMask: GameState.boardMask,
+                    board: GameState.board,
+                    regions: GameState.regions,
+                    dominoes: GameState.dominoes,
+                    timerSeconds: GameState.timerSeconds
+                };
+                localStorage.setItem('nyt_pips_save_v2', JSON.stringify(stateToSave));
+            } catch(e) {}
+        }
+
+        function clearSave() {
+            try {
+                localStorage.removeItem('nyt_pips_save_v2');
+            } catch(e) {}
+        }
+
+        function loadGame() {
+            try {
+                const saved = localStorage.getItem('nyt_pips_save_v2');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    Object.assign(GameState, state);
+                    
+                    document.querySelectorAll('.diff-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                        b.classList.add('text-slate-600');
+                        if (b.dataset.diff === GameState.difficulty) {
+                            b.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                            b.classList.remove('text-slate-600');
+                        }
+                    });
+                    
+                    startTimer(true);
+                    renderBoard();
+                    renderTray();
+                    validateBoard();
+                    return true;
+                }
+            } catch(e) {}
+            return false;
+        }
+
+        function generatePuzzle(diff) {
+            GameState.difficulty = diff;
+            
+            let numDominoes;
+            if (diff === 'easy') numDominoes = Math.floor(Math.random() * 2) + 4; // 4-5
+            else if (diff === 'medium') numDominoes = Math.floor(Math.random() * 3) + 7; // 7-9
+            else numDominoes = Math.floor(Math.random() * 4) + 11; // 11-14
+
+            const GRID_SIZE = 40;
+            let tempGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(-1));
+            let tilingDoms = [];
+            let placedCells = new Set();
+
+            function addTilingDomino(r1, c1, r2, c2, id) {
+                tempGrid[r1][c1] = id;
+                tempGrid[r2][c2] = id;
+                tilingDoms.push({id, cells:[{r:r1, c:c1}, {r:r2, c:c2}]});
+                placedCells.add(`${r1},${c1}`);
+                placedCells.add(`${r2},${c2}`);
+            }
+
+            addTilingDomino(20, 20, 20, 21, 1);
+
+            for (let i = 2; i <= numDominoes; i++) {
+                let possibleSlots = [];
+                let emptyAdj = new Set();
+                
+                for (let str of placedCells) {
+                    let [r, c] = str.split(',').map(Number);
+                    [[r-1,c], [r+1,c], [r,c-1], [r,c+1]].forEach(([nr, nc]) => {
+                        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && tempGrid[nr][nc] === -1) {
+                            emptyAdj.add(`${nr},${nc}`);
+                        }
+                    });
+                }
+
+                for (let str of emptyAdj) {
+                    let [r, c] = str.split(',').map(Number);
+                    [[r-1,c], [r+1,c], [r,c-1], [r,c+1]].forEach(([nr, nc]) => {
+                        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && tempGrid[nr][nc] === -1 && `${nr},${nc}` !== str) {
+                            let p1 = `${r},${c}`, p2 = `${nr},${nc}`;
+                            let slotKey = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+                            possibleSlots.push({key: slotKey, r1: r, c1: c, r2: nr, c2: nc});
+                        }
+                    });
+                }
+
+                let uniqueSlots = Array.from(new Map(possibleSlots.map(s => [s.key, s])).values());
+                if (uniqueSlots.length === 0) break;
+
+                let slot = uniqueSlots[Math.floor(Math.random() * uniqueSlots.length)];
+                addTilingDomino(slot.r1, slot.c1, slot.r2, slot.c2, i);
+            }
+
+            let minR = GRID_SIZE, maxR = 0, minC = GRID_SIZE, maxC = 0;
+            for (let str of placedCells) {
+                let [r, c] = str.split(',').map(Number);
+                if (r < minR) minR = r;
+                if (r > maxR) maxR = r;
+                if (c < minC) minC = c;
+                if (c > maxC) maxC = c;
+            }
+
+            let R = maxR - minR + 1;
+            let C = maxC - minC + 1;
+            let mask = Array(R).fill(0).map(() => Array(C).fill(0));
+            let finalTiling = [];
+
+            tilingDoms.forEach(d => {
+                let nr1 = d.cells[0].r - minR;
+                let nc1 = d.cells[0].c - minC;
+                let nr2 = d.cells[1].r - minR;
+                let nc2 = d.cells[1].c - minC;
+                mask[nr1][nc1] = 1;
+                mask[nr2][nc2] = 1;
+                finalTiling.push({ id: d.id, cells: [{r: nr1, c: nc1}, {r: nr2, c: nc2}] });
+            });
+
+            GameState.rows = R;
+            GameState.cols = C;
+            GameState.boardMask = mask;
+
+            const allDominoPairs = [];
+            for (let i = 0; i <= 6; i++) {
+                for (let j = i; j <= 6; j++) {
+                    allDominoPairs.push([i, j]);
+                }
+            }
+            allDominoPairs.sort(() => Math.random() - 0.5);
+            const selectedPairs = allDominoPairs.slice(0, numDominoes);
+
+            const solutionValues = Array(R).fill(0).map(() => Array(C).fill(null));
+            const dominoesList = [];
+
+            finalTiling.forEach((t, idx) => {
+                let pair = selectedPairs[idx];
+                if (Math.random() < 0.5) pair = [pair[1], pair[0]];
+
+                solutionValues[t.cells[0].r][t.cells[0].c] = pair[0];
+                solutionValues[t.cells[1].r][t.cells[1].c] = pair[1];
+
+                dominoesList.push({
+                    id: `dom-${t.id}`,
+                    v1: pair[0],
+                    v2: pair[1],
+                    rotation: 0,
+                    placed: false
+                });
+            });
+
+            const regionGrid = Array(R).fill(0).map(() => Array(C).fill(-1));
+            let currentRegionId = 0;
+            
+            let targetRegions = diff === 'easy' ? Math.max(2, Math.floor(numDominoes * 0.8)) :
+                                diff === 'medium' ? Math.max(3, Math.floor(numDominoes * 0.7)) :
+                                Math.max(4, Math.floor(numDominoes * 0.6));
+                                
+            const validCells = [];
+            for(let r=0; r<R; r++) {
+                for(let c=0; c<C; c++) {
+                    if(mask[r][c] === 1) validCells.push({r,c});
+                }
+            }
+            validCells.sort(() => Math.random() - 0.5);
+            
+            for(let i=0; i<Math.min(targetRegions, validCells.length); i++) {
+                let cell = validCells[i];
+                regionGrid[cell.r][cell.c] = currentRegionId++;
+            }
+            
+            let changed = true;
+            while(changed) {
+                changed = false;
+                let snapshot = regionGrid.map(row => [...row]);
+                
+                for(let r=0; r<R; r++) {
+                    for(let c=0; c<C; c++) {
+                        if(mask[r][c] === 1 && snapshot[r][c] === -1) {
+                            let neighbors = [];
+                            [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => {
+                                let nr = r+dr, nc = c+dc;
+                                if(nr>=0 && nr<R && nc>=0 && nc<C && snapshot[nr][nc] !== -1) {
+                                    neighbors.push(snapshot[nr][nc]);
+                                }
+                            });
+                            
+                            if(neighbors.length > 0) {
+                                regionGrid[r][c] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            const regionCellsMap = [];
+            for(let id=0; id<currentRegionId; id++) {
+                let cells = [];
+                for(let r=0; r<R; r++) {
+                    for(let c=0; c<C; c++) {
+                        if(regionGrid[r][c] === id) cells.push({r, c});
+                    }
+                }
+                if(cells.length > 0) regionCellsMap.push({ id, cells });
+            }
+
+            let colorIdx = 0;
+            const regionsList = regionCellsMap.map(reg => {
+                const values = reg.cells.map(cell => solutionValues[cell.r][cell.c]);
+                const sum = values.reduce((a, b) => a + b, 0);
+                const allEqual = values.length > 1 && values.every(v => v === values[0]);
+                const allUnique = values.length > 1 && (new Set(values)).size === values.length;
+
+                let possibleRules = [];
+                
+                if (diff === 'easy') {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                    if (Math.random() < 0.2) possibleRules.push({ type: 'NONE', target: null, label: '' });
+                } else if (diff === 'medium') {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                    if (allUnique) possibleRules.push({ type: 'NOT_EQUAL', target: null, label: '≠' });
+                    if (Math.random() < 0.1) possibleRules.push({ type: 'NONE', target: null, label: '' });
+                } else {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                    if (allUnique) possibleRules.push({ type: 'NOT_EQUAL', target: null, label: '≠' });
+                    if (sum < 15) {
+                        let ltTarget = sum + Math.floor(Math.random() * 3) + 1;
+                        possibleRules.push({ type: 'LESS_THAN', target: ltTarget, label: `<${ltTarget}` });
+                    }
+                    if (sum > 6) {
+                        let gtTarget = sum - Math.floor(Math.random() * 3) - 1;
+                        possibleRules.push({ type: 'GREATER_THAN', target: gtTarget, label: `>${gtTarget}` });
+                    }
+                }
+
+                let nonSum = possibleRules.filter(r => r.type !== 'SUM' && r.type !== 'NONE');
+                let selectedRule = (nonSum.length > 0 && Math.random() < 0.6) ? nonSum[Math.floor(Math.random() * nonSum.length)] : possibleRules[Math.floor(Math.random() * possibleRules.length)];
+
+                let badgeCell = reg.cells[0];
+                for (let c of reg.cells) {
+                    if (c.r > badgeCell.r || (c.r === badgeCell.r && c.c > badgeCell.c)) {
+                        badgeCell = c;
+                    }
+                }
+
+                const regData = {
+                    id: reg.id,
+                    cells: reg.cells,
+                    rule: selectedRule.type,
+                    target: selectedRule.target,
+                    label: selectedRule.label,
+                    color: REGION_PALETTE[colorIdx % REGION_PALETTE.length],
+                    badgeCell: badgeCell,
+                    satisfied: false
+                };
+                colorIdx++;
+                return regData;
+            });
+
+            GameState.board = Array(R).fill(null).map((_, r) => 
+                Array(C).fill(null).map((_, c) => {
+                    if (mask[r][c] === 0) return null;
+                    return { row: r, col: c, regionId: regionGrid[r][c], placedDominoId: null, pipValue: null };
+                })
+            );
+
+            GameState.regions = regionsList;
+            GameState.dominoes = dominoesList;
+            GameState.selectedDominoId = null;
+            
+            startTimer();
+            renderBoard();
+            renderTray();
+            validateBoard();
+            saveGame();
+        }
+
+        function updateBoardCellSize() {
+            const scrollContainer = document.getElementById('board-scroll-container');
+            if (!scrollContainer || !GameState.rows || !GameState.cols) return;
+
+            const rect = scrollContainer.getBoundingClientRect();
+            // Account for padding and give board a bit of breathing room
+            const availWidth = rect.width - 32; 
+            const availHeight = rect.height - 32;
+
+            if (availWidth <= 0 || availHeight <= 0) return;
+
+            const maxCellWidth = availWidth / GameState.cols;
+            const maxCellHeight = availHeight / GameState.rows;
+
+            let calcSize = Math.min(maxCellWidth, maxCellHeight);
+            calcSize = Math.max(24, Math.min(64, Math.floor(calcSize))); // Hard clamp to reasonable sizes
+
+            document.documentElement.style.setProperty('--cell-size', `${calcSize}px`);
+            
+            // Adjust tray piece size based on viewport width to match board scale roughly
+            const trayBase = Math.max(28, Math.min(44, window.innerWidth / 15));
+            document.documentElement.style.setProperty('--tray-size', `${trayBase}px`);
+        }
+
+        function renderPips(value) {
+            if (value === 0) return '<div class="pip-face"></div>';
+            
+            let dots = '';
+            // Helper for absolute positioning
+            const p = (x, y) => `<div class="pip" style="left: ${x}%; top: ${y}%;"></div>`;
+            
+            // Standard domino/dice faces hardcoded
+            switch(value) {
+                case 1: dots = p(50, 50); break;
+                case 2: dots = p(25, 25) + p(75, 75); break;
+                case 3: dots = p(25, 25) + p(50, 50) + p(75, 75); break;
+                case 4: dots = p(25, 25) + p(75, 25) + p(25, 75) + p(75, 75); break;
+                case 5: dots = p(25, 25) + p(75, 25) + p(50, 50) + p(25, 75) + p(75, 75); break;
+                case 6: dots = p(25, 25) + p(25, 50) + p(25, 75) + p(75, 25) + p(75, 50) + p(75, 75); break;
+            }
+            
+            return `<div class="pip-face">${dots}</div>`;
+        }
+
+        function createDominoElement(domino, isPlaced = false) {
+            const el = document.createElement('div');
+            el.className = `domino-tile flex cursor-pointer ${domino.id === GameState.selectedDominoId && !isPlaced ? 'selected' : ''}`;
+            el.dataset.id = domino.id;
+
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const isFlipped = domino.rotation === 180 || domino.rotation === 270;
+            
+            const val1 = isFlipped ? domino.v2 : domino.v1;
+            const val2 = isFlipped ? domino.v1 : domino.v2;
+            
+            if (isPlaced) {
+                el.style.width = isVertical ? '100%' : '200%';
+                el.style.height = isVertical ? '200%' : '100%';
+                el.style.position = 'absolute';
+                el.style.top = '0';
+                el.style.left = '0';
+            } else {
+                // Dynamically sized based on CSS var set in updateBoardCellSize
+                el.style.width = isVertical ? 'var(--tray-size)' : 'calc(var(--tray-size) * 2)';
+                el.style.height = isVertical ? 'calc(var(--tray-size) * 2)' : 'var(--tray-size)';
+            }
+            
+            if (isVertical) {
+                el.classList.add('flex-col');
+                el.innerHTML = `
+                    <div class="flex-1 w-full relative z-10">${renderPips(val1)}</div>
+                    <div class="domino-divider-h"></div>
+                    <div class="flex-1 w-full relative z-10">${renderPips(val2)}</div>
+                `;
+            } else {
+                el.classList.add('flex-row');
+                el.innerHTML = `
+                    <div class="flex-1 h-full relative z-10">${renderPips(val1)}</div>
+                    <div class="domino-divider-v"></div>
+                    <div class="flex-1 h-full relative z-10">${renderPips(val2)}</div>
+                `;
+            }
+
+            el.addEventListener('mousedown', (e) => handleDominoInteraction(e, domino, isPlaced));
+            el.addEventListener('touchstart', (e) => handleDominoInteraction(e, domino, isPlaced), {passive: false});
+
+            return el;
+        }
+
+        function renderBoard() {
+            const container = document.getElementById('board-container');
+            container.innerHTML = '';
+
+            const gridEl = document.createElement('div');
+            gridEl.className = 'board-grid';
+            gridEl.style.gridTemplateColumns = `repeat(${GameState.cols}, 1fr)`;
+
+            function getBorderStyles(r, c, regionId) {
+                let borders = [];
+                const color = GameState.regions.find(reg => reg.id === regionId).color.border;
+                const outerBorder = `2px dashed ${color}`;
+                const innerBorder = `1px solid rgba(0, 0, 0, 0.15)`; 
+                
+                borders.push((r === 0 || GameState.board[r-1][c] === null || GameState.board[r-1][c].regionId !== regionId) ? `border-top: ${outerBorder}` : `border-top: ${innerBorder}`);
+                borders.push((r === GameState.rows-1 || GameState.board[r+1][c] === null || GameState.board[r+1][c].regionId !== regionId) ? `border-bottom: ${outerBorder}` : `border-bottom: ${innerBorder}`);
+                borders.push((c === 0 || GameState.board[r][c-1] === null || GameState.board[r][c-1].regionId !== regionId) ? `border-left: ${outerBorder}` : `border-left: ${innerBorder}`);
+                borders.push((c === GameState.cols-1 || GameState.board[r][c+1] === null || GameState.board[r][c+1].regionId !== regionId) ? `border-right: ${outerBorder}` : `border-right: ${innerBorder}`);
+                
+                return borders.join('; ');
+            }
+
+            for (let r = 0; r < GameState.rows; r++) {
+                for (let c = 0; c < GameState.cols; c++) {
+                    const cell = GameState.board[r][c];
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'cell-item';
+                    cellEl.dataset.row = r;
+                    cellEl.dataset.col = c;
+
+                    if (cell === null) {
+                        cellEl.classList.add('cell-empty');
+                    } else {
+                        const region = GameState.regions.find(rg => rg.id === cell.regionId);
+                        
+                        cellEl.style.backgroundColor = region.color.bg;
+                        cellEl.style.cssText += getBorderStyles(r, c, region.id);
+
+                        cellEl.addEventListener('mouseenter', () => handleCellHover(r, c, true));
+                        cellEl.addEventListener('mouseleave', () => handleCellHover(r, c, false));
+
+                        if (region.rule !== 'NONE' && region.badgeCell.r === r && region.badgeCell.c === c) {
+                            const badge = document.createElement('div');
+                            badge.className = 'region-badge';
+                            badge.style.backgroundColor = region.color.badge;
+                            badge.innerHTML = `<div class="region-badge-inner">${region.label}</div>`;
+                            cellEl.appendChild(badge);
+                        }
+
+                        if (cell.placedDominoId !== null) {
+                            const domino = GameState.dominoes.find(d => d.id === cell.placedDominoId);
+                            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+                            const isAnchor = isVertical ? 
+                                (r === 0 || !GameState.board[r-1][c] || GameState.board[r-1][c].placedDominoId !== domino.id) : 
+                                (c === 0 || !GameState.board[r][c-1] || GameState.board[r][c-1].placedDominoId !== domino.id);
+
+                            if (isAnchor) {
+                                const domEl = createDominoElement(domino, true);
+                                if (domino.id === GameState.lastPlacedDominoId) {
+                                    domEl.classList.add('animate-pop');
+                                }
+                                cellEl.appendChild(domEl);
+                            }
+                        }
+                    }
+                    gridEl.appendChild(cellEl);
+                }
+            }
+
+            container.appendChild(gridEl);
+            updateTilesCount();
+            updateBoardCellSize();
+            GameState.lastPlacedDominoId = null;
+        }
+
+        function renderTray() {
+            const tray = document.getElementById('tiles-tray');
+            tray.innerHTML = '';
+            
+            const unplaced = GameState.dominoes.filter(d => !d.placed);
+            
+            if (unplaced.length === 0) {
+                tray.innerHTML = `<div class="w-full text-center text-sm text-slate-400 italic py-8">All dominoes placed!</div>`;
+                return;
+            }
+
+            unplaced.forEach(domino => {
+                tray.appendChild(createDominoElement(domino, false));
+            });
+        }
+
+        function updateTilesCount() {
+            document.getElementById('tiles-count').innerText = GameState.dominoes.filter(d => !d.placed).length;
+        }
+
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let activeDragElement = null;
+
+        function handleDominoInteraction(e, domino, isBoardDomino) {
+            // Prevent zooming/scrolling on mobile while engaging piece
+            if (e.type === 'touchstart' && e.cancelable) e.preventDefault(); 
+
+            const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+            const startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            let isDraggingStarted = false;
+            const dragSourceEl = e.currentTarget;
+
+            const onPointerMove = (moveEv) => {
+                if (moveEv.type === 'touchmove' && moveEv.cancelable) moveEv.preventDefault();
+
+                const currentX = moveEv.type === 'touchmove' ? moveEv.touches[0].clientX : moveEv.clientX;
+                const currentY = moveEv.type === 'touchmove' ? moveEv.touches[0].clientY : moveEv.clientY;
+                const dist = Math.hypot(currentX - startX, currentY - startY);
+
+                if (dist > 5 && !isDraggingStarted) {
+                    isDraggingStarted = true;
+                    cleanup();
+                    GameState.selectedDominoId = domino.id;
+                    startDrag(moveEv, domino, startX, startY, dragSourceEl);
+
+                    if (isBoardDomino) {
+                        removeDominoFromBoard(domino.id, false); 
+                    } else {
+                        renderTray();
+                    }
+                }
+            };
+
+            const onPointerUp = () => {
+                cleanup();
+                if (!isDraggingStarted) {
+                    if (isBoardDomino) {
+                        removeDominoFromBoard(domino.id, true);
+                    } else {
+                        if (GameState.selectedDominoId === domino.id) {
+                            domino.rotation = (domino.rotation + 90) % 360;
+                            AudioFX.playRotate();
+                            saveGame();
+                        } else {
+                            GameState.selectedDominoId = domino.id;
+                            AudioFX.playClick();
+                        }
+                        renderTray();
+                    }
+                }
+            };
+
+            const cleanup = () => {
+                document.removeEventListener('mousemove', onPointerMove);
+                document.removeEventListener('touchmove', onPointerMove);
+                document.removeEventListener('mouseup', onPointerUp);
+                document.removeEventListener('touchend', onPointerUp);
+            };
+
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('touchmove', onPointerMove, { passive: false });
+            document.addEventListener('mouseup', onPointerUp);
+            document.addEventListener('touchend', onPointerUp);
+        }
+
+        function startDrag(e, domino, startX, startY, sourceEl) {
+            GameState.isDragging = true;
+            GameState.draggedDominoId = domino.id;
+
+            const rect = sourceEl.getBoundingClientRect();
+            dragOffsetX = startX - rect.left;
+            dragOffsetY = startY - rect.top;
+
+            activeDragElement = sourceEl.cloneNode(true);
+            activeDragElement.classList.add('dragging');
+            activeDragElement.style.position = 'absolute';
+            
+            activeDragElement.style.width = `${rect.width}px`;
+            activeDragElement.style.height = `${rect.height}px`;
+            activeDragElement.style.left = `${rect.left}px`;
+            activeDragElement.style.top = `${rect.top}px`;
+            activeDragElement.style.margin = '0';
+            activeDragElement.style.zIndex = '9999';
+            
+            sourceEl.style.opacity = '0.3';
+            document.getElementById('drag-layer').appendChild(activeDragElement);
+
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('touchmove', onDragMove, {passive: false});
+            document.addEventListener('mouseup', onDragEnd);
+            document.addEventListener('touchend', onDragEnd);
+        }
+
+        function onDragMove(e) {
+            if (!GameState.isDragging || !activeDragElement) return;
+            if (e.cancelable) e.preventDefault();
+
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+            activeDragElement.style.left = `${clientX - dragOffsetX}px`;
+            activeDragElement.style.top = `${clientY - dragOffsetY}px`;
+
+            // Adjust elements below calculation to ignore the drag layer itself
+            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            let hoveredCell = null;
+            for (let el of elementsBelow) {
+                if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
+                    hoveredCell = el;
+                    break;
+                }
+            }
+
+            if (hoveredCell) {
+                const r = parseInt(hoveredCell.dataset.row);
+                const c = parseInt(hoveredCell.dataset.col);
+                handleCellHover(r, c, true, GameState.draggedDominoId);
+            } else {
+                clearHoverPreviews();
+            }
+        }
+
+        function onDragEnd(e) {
+            if (!GameState.isDragging) return;
+            
+            const clientX = e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
+
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchend', onDragEnd);
+
+            if (activeDragElement) {
+                activeDragElement.remove();
+                activeDragElement = null;
+            }
+
+            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            let dropCell = null;
+            for (let el of elementsBelow) {
+                if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
+                    dropCell = el;
+                    break;
+                }
+            }
+
+            if (dropCell) {
+                const r = parseInt(dropCell.dataset.row);
+                const c = parseInt(dropCell.dataset.col);
+                GameState.selectedDominoId = GameState.draggedDominoId;
+                handleCellClick(r, c);
+            } else {
+                renderBoard(); // re-render board if dragged from there to clear opacity
+                renderTray();
+                saveGame();
+            }
+
+            GameState.isDragging = false;
+            GameState.draggedDominoId = null;
+            clearHoverPreviews();
+        }
+
+        function handleCellClick(r, c) {
+            const dominoId = GameState.selectedDominoId;
+            if (!dominoId) return;
+
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino || domino.placed) return;
+
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const targetA = { r, c };
+            const targetB = isVertical ? { r: r + 1, c } : { r, c: c + 1 };
+
+            if (targetB.r >= GameState.rows || targetB.c >= GameState.cols) {
+                showToast("Doesn't fit here!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            if (GameState.board[targetA.r][targetA.c] === null || GameState.board[targetB.r][targetB.c] === null) {
+                showToast("Invalid space!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            if (GameState.board[targetA.r][targetA.c].placedDominoId !== null ||
+                GameState.board[targetB.r][targetB.c].placedDominoId !== null) {
+                showToast("Space occupied!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            const isFlipped = domino.rotation === 180 || domino.rotation === 270;
+            const valA = isFlipped ? domino.v2 : domino.v1;
+            const valB = isFlipped ? domino.v1 : domino.v2;
+
+            GameState.board[targetA.r][targetA.c].placedDominoId = domino.id;
+            GameState.board[targetA.r][targetA.c].pipValue = valA;
+            
+            GameState.board[targetB.r][targetB.c].placedDominoId = domino.id;
+            GameState.board[targetB.r][targetB.c].pipValue = valB;
+
+            domino.placed = true;
+            GameState.selectedDominoId = null;
+            GameState.lastPlacedDominoId = domino.id;
+
+            AudioFX.playSnap();
+            renderBoard();
+            renderTray();
+            validateBoard();
+            saveGame();
+        }
+
+        function handleCellHover(r, c, isEnter, dragId = null) {
+            clearHoverPreviews();
+            const dominoId = dragId || GameState.selectedDominoId;
+            if (!isEnter || !dominoId) return;
+
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino || domino.placed) return;
+
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const targetB = isVertical ? { r: r + 1, c } : { r, c: c + 1 };
+            const fitsBounds = (targetB.r < GameState.rows && targetB.c < GameState.cols);
+            
+            let isValid = fitsBounds;
+            if (isValid) {
+                const cellA = GameState.board[r][c];
+                const cellB = GameState.board[targetB.r][targetB.c];
+                if (cellA === null || cellB === null || cellA.placedDominoId !== null || cellB.placedDominoId !== null) {
+                    isValid = false;
+                }
+            }
+
+            const className = isValid ? 'cell-hover-valid' : 'cell-hover-invalid';
+            const elA = document.querySelector(`.cell-item[data-row="${r}"][data-col="${c}"]`);
+            if (elA) elA.classList.add(className);
+
+            if (fitsBounds) {
+                const elB = document.querySelector(`.cell-item[data-row="${targetB.r}"][data-col="${targetB.c}"]`);
+                if (elB) elB.classList.add(className);
+            }
+        }
+
+        function clearHoverPreviews() {
+            document.querySelectorAll('.cell-item').forEach(el => {
+                el.classList.remove('cell-hover-valid', 'cell-hover-invalid');
+            });
+        }
+
+        function removeDominoFromBoard(dominoId, updateUI = true) {
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino) return;
+
+            for (let r = 0; r < GameState.rows; r++) {
+                for (let c = 0; c < GameState.cols; c++) {
+                    if (GameState.board[r][c] && GameState.board[r][c].placedDominoId === dominoId) {
+                        GameState.board[r][c].placedDominoId = null;
+                        GameState.board[r][c].pipValue = null;
+                    }
+                }
+            }
+
+            domino.placed = false;
+            
+            if (updateUI) {
+                AudioFX.playClick();
+                renderBoard();
+                renderTray();
+                validateBoard();
+                saveGame();
+            }
+        }
+
+        function validateBoard() {
+            let allRegionsSatisfied = true;
+            let cellsFilled = 0;
+
+            GameState.regions.forEach(region => {
+                const values = [];
+                let isFull = true;
+
+                region.cells.forEach(cell => {
+                    const bCell = GameState.board[cell.r][cell.c];
+                    if (bCell.pipValue !== null) {
+                        values.push(bCell.pipValue);
+                        cellsFilled++;
+                    } else {
+                        isFull = false;
+                    }
+                });
+
+                let satisfied = false;
+                if (values.length > 0) {
+                    const sum = values.reduce((a, b) => a + b, 0);
+                    switch (region.rule) {
+                        case 'SUM': satisfied = isFull ? sum === region.target : sum <= region.target; break;
+                        case 'EQUAL': satisfied = values.every(v => v === values[0]); break;
+                        case 'NOT_EQUAL': satisfied = (new Set(values)).size === values.length; break;
+                        case 'LESS_THAN': satisfied = sum < region.target; break;
+                        case 'GREATER_THAN': satisfied = isFull ? sum > region.target : true; break;
+                        case 'NONE': satisfied = true; break;
+                    }
+                } else {
+                    satisfied = true;
+                }
+
+                region.satisfied = satisfied && isFull;
+                if (!region.satisfied) allRegionsSatisfied = false;
+
+                region.cells.forEach(c => {
+                    const el = document.querySelector(`.cell-item[data-row="${c.r}"][data-col="${c.c}"]`);
+                    if (el) {
+                        if (region.rule !== 'NONE' && isFull) {
+                            if (satisfied) {
+                                el.style.animation = 'pulse-border 2s infinite';
+                            } else {
+                                el.style.animation = 'none';
+                                el.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                            }
+                        } else {
+                            el.style.animation = 'none';
+                            el.style.borderColor = region.color.border; 
+                        }
+                    }
+                });
+            });
+
+            const actualTotalCells = GameState.regions.reduce((acc, r) => acc + r.cells.length, 0);
+
+            if (cellsFilled === actualTotalCells) {
+                if (allRegionsSatisfied) triggerVictory();
+                else showToast("Board is full, but some rules aren't met!");
+            }
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('status-toast');
+            el.innerText = msg;
+            el.classList.remove('opacity-0');
+            el.classList.add('opacity-100', 'translate-y-[-20px]');
+            setTimeout(() => {
+                el.classList.remove('opacity-100', 'translate-y-[-20px]');
+                el.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        function startTimer(resume = false) {
+            clearInterval(GameState.timerInterval);
+            if (!resume) GameState.timerSeconds = 0;
+            updateTimerDisplay();
+            GameState.timerInterval = setInterval(() => {
+                GameState.timerSeconds++;
+                updateTimerDisplay();
+                if (GameState.timerSeconds % 5 === 0) saveGame();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(GameState.timerInterval);
+            saveGame();
+        }
+
+        function updateTimerDisplay() {
+            const m = String(Math.floor(GameState.timerSeconds / 60)).padStart(2, '0');
+            const s = String(GameState.timerSeconds % 60).padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        }
+
+        function triggerVictory() {
+            stopTimer();
+            AudioFX.playWin();
+
+            const diff = GameState.difficulty;
+            const st = GameState.stats[diff];
+            st.played++;
+            st.won++;
+            st.totalTime += GameState.timerSeconds;
+            if (!st.bestTime || GameState.timerSeconds < st.bestTime) st.bestTime = GameState.timerSeconds;
+            
+            saveStats();
+            clearSave();
+
+            document.getElementById('victory-diff-label').innerText = `${diff} PUZZLE SOLVED`;
+            document.getElementById('victory-time').innerText = formatTime(GameState.timerSeconds);
+            document.getElementById('victory-best').innerText = formatTime(st.bestTime);
+            
+            const modal = document.getElementById('modal-victory');
+            const card = document.getElementById('victory-card');
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                card.classList.remove('scale-95', 'opacity-0');
+                card.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function formatTime(s) {
+            if (!s && s !== 0) return '--:--';
+            return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        }
+
+        function renderStatsModal() {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '';
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                const s = GameState.stats[diff];
+                const avg = s.won > 0 ? Math.round(s.totalTime / s.won) : 0;
+                container.innerHTML += `
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold capitalize text-slate-800">${diff}</span>
+                            <span class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">${s.won} Wins</span>
+                        </div>
+                        <div class="flex justify-between text-sm text-slate-500">
+                            <span>Avg: <strong class="text-slate-700">${s.won ? formatTime(avg) : '--'}</strong></span>
+                            <span>Best: <strong class="text-emerald-600">${s.bestTime ? formatTime(s.bestTime) : '--'}</strong></span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            AudioFX.init();
+            loadStats();
+
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.diff-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                        b.classList.add('text-slate-600');
+                    });
+                    btn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                    btn.classList.remove('text-slate-600');
+                    generatePuzzle(btn.dataset.diff);
+                });
+            });
+
+            document.getElementById('btn-new-game').addEventListener('click', () => generatePuzzle(GameState.difficulty));
+            
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                GameState.dominoes.forEach(d => { d.placed = false; d.rotation = 0; });
+                for (let r = 0; r < GameState.rows; r++) {
+                    for (let c = 0; c < GameState.cols; c++) {
+                        if (GameState.board[r][c]) {
+                            GameState.board[r][c].placedDominoId = null;
+                            GameState.board[r][c].pipValue = null;
+                        }
+                    }
+                }
+                GameState.selectedDominoId = null;
+                renderBoard();
+                renderTray();
+                validateBoard();
+                saveGame();
+                AudioFX.playClick();
+            });
+
+            document.getElementById('btn-stats').addEventListener('click', () => {
+                renderStatsModal();
+                document.getElementById('modal-stats').classList.remove('hidden');
+            });
+            document.getElementById('btn-how-to-play').addEventListener('click', () => {
+                document.getElementById('modal-howto').classList.remove('hidden');
+            });
+            document.getElementById('btn-sound').addEventListener('click', function() {
+                AudioFX.muted = !AudioFX.muted;
+                this.innerHTML = AudioFX.muted ? '<i class="fa-solid fa-volume-xmark text-sm"></i>' : '<i class="fa-solid fa-volume-high text-sm"></i>';
+            });
+            document.querySelectorAll('.modal-close').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.fixed.inset-0').forEach(m => m.classList.add('hidden'));
+                });
+            });
+            document.getElementById('btn-victory-next').addEventListener('click', () => {
+                document.getElementById('modal-victory').classList.add('hidden');
+                generatePuzzle(GameState.difficulty);
+            });
+            document.getElementById('btn-reset-stats').addEventListener('click', () => {
+                if(confirm("Clear all statistics?")) {
+                    GameState.stats = { easy: {played:0,won:0,totalTime:0,bestTime:null}, medium: {played:0,won:0,totalTime:0,bestTime:null}, hard: {played:0,won:0,totalTime:0,bestTime:null} };
+                    saveStats();
+                    renderStatsModal();
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                updateBoardCellSize();
+            });
+
+            if (!loadGame()) {
+                document.querySelector('.diff-btn[data-diff="easy"]').click();
+            }
+            
+            document.body.addEventListener('click', () => AudioFX.init(), {once: true});
+            document.body.addEventListener('touchstart', () => AudioFX.init(), {once: true});
+        });
+    </script>
+</body>
+</html>
