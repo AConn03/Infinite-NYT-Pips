@@ -187,6 +187,16 @@
             pointer-events: none;
             z-index: 9999;
         }
+
+        .domino-tile.dragging {
+            z-index: 9999 !important;
+            pointer-events: none !important;
+            position: fixed !important;
+            margin: 0 !important;
+            transform: scale(1.1) translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+            opacity: 0.95;
+        }
     </style>
 </head>
 <body class="flex flex-col font-sans antialiased text-slate-800">
@@ -822,7 +832,6 @@
                 el.style.top = '0';
                 el.style.left = '0';
             } else {
-                // Dynamically sized based on CSS var set in updateBoardCellSize
                 el.style.width = isVertical ? 'var(--tray-size)' : 'calc(var(--tray-size) * 2)';
                 el.style.height = isVertical ? 'calc(var(--tray-size) * 2)' : 'var(--tray-size)';
             }
@@ -843,8 +852,8 @@
                 `;
             }
 
-            el.addEventListener('mousedown', (e) => handleDominoInteraction(e, domino, isPlaced));
-            el.addEventListener('touchstart', (e) => handleDominoInteraction(e, domino, isPlaced), {passive: false});
+            // Use PointerDown for unified mouse & touch support
+            el.addEventListener('pointerdown', (e) => handleDominoInteraction(e, domino, isPlaced));
 
             return el;
         }
@@ -947,41 +956,43 @@
         let dragOffsetX = 0;
         let dragOffsetY = 0;
         let activeDragElement = null;
+        let activeDragSourceEl = null;
 
         function handleDominoInteraction(e, domino, isBoardDomino) {
-            if (e.type === 'touchstart' && e.cancelable) e.preventDefault(); 
+            if (e.button !== undefined && e.button !== 0) return; // Only primary clicks
+            e.preventDefault();
 
-            const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-            const startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            const startX = e.clientX;
+            const startY = e.clientY;
             let isDraggingStarted = false;
             const dragSourceEl = e.currentTarget;
 
             const onPointerMove = (moveEv) => {
-                if (moveEv.type === 'touchmove' && moveEv.cancelable) moveEv.preventDefault();
+                const dist = Math.hypot(moveEv.clientX - startX, moveEv.clientY - startY);
 
-                const currentX = moveEv.type === 'touchmove' ? moveEv.touches[0].clientX : moveEv.clientX;
-                const currentY = moveEv.type === 'touchmove' ? moveEv.touches[0].clientY : moveEv.clientY;
-                const dist = Math.hypot(currentX - startX, currentY - startY);
-
-                if (dist > 5 && !isDraggingStarted) {
+                if (dist > 6 && !isDraggingStarted) {
                     isDraggingStarted = true;
-                    cleanup();
                     GameState.selectedDominoId = domino.id;
-                    
-                    // Pass the resolved current touch/mouse coordinates
-                    startDrag(currentX, currentY, domino, dragSourceEl);
 
                     if (isBoardDomino) {
-                        removeDominoFromBoard(domino.id, false); 
-                    } else {
-                        renderTray();
+                        removeDominoFromBoard(domino.id, false);
                     }
+
+                    startDrag(moveEv.clientX, moveEv.clientY, domino, dragSourceEl);
+                }
+
+                if (isDraggingStarted) {
+                    onDragMove(moveEv);
                 }
             };
 
-            const onPointerUp = () => {
+            const onPointerUp = (upEv) => {
                 cleanup();
-                if (!isDraggingStarted) {
+
+                if (isDraggingStarted) {
+                    onDragEnd(upEv);
+                } else {
+                    // Tap / Click action
                     if (isBoardDomino) {
                         removeDominoFromBoard(domino.id, true);
                     } else {
@@ -999,23 +1010,24 @@
             };
 
             const cleanup = () => {
-                document.removeEventListener('mousemove', onPointerMove);
-                document.removeEventListener('touchmove', onPointerMove);
-                document.removeEventListener('mouseup', onPointerUp);
-                document.removeEventListener('touchend', onPointerUp);
-                document.removeEventListener('touchcancel', onPointerUp);
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', onPointerUp);
+                window.removeEventListener('pointercancel', onPointerUp);
             };
 
-            document.addEventListener('mousemove', onPointerMove);
-            document.addEventListener('touchmove', onPointerMove, { passive: false });
-            document.addEventListener('mouseup', onPointerUp);
-            document.addEventListener('touchend', onPointerUp);
-            document.addEventListener('touchcancel', onPointerUp);
+            window.addEventListener('pointermove', onPointerMove, { passive: false });
+            window.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('pointercancel', onPointerUp);
         }
 
         function startDrag(clientX, clientY, domino, sourceEl) {
             GameState.isDragging = true;
             GameState.draggedDominoId = domino.id;
+            activeDragSourceEl = sourceEl;
+
+            // Clear any lingering drag clones
+            const dragLayer = document.getElementById('drag-layer');
+            dragLayer.innerHTML = '';
 
             const rect = sourceEl.getBoundingClientRect();
             dragOffsetX = clientX - rect.left;
@@ -1023,37 +1035,22 @@
 
             activeDragElement = sourceEl.cloneNode(true);
             activeDragElement.classList.add('dragging');
-            activeDragElement.style.position = 'fixed';
-            activeDragElement.style.pointerEvents = 'none';
-            
             activeDragElement.style.width = `${rect.width}px`;
             activeDragElement.style.height = `${rect.height}px`;
             activeDragElement.style.left = `${clientX - dragOffsetX}px`;
             activeDragElement.style.top = `${clientY - dragOffsetY}px`;
-            activeDragElement.style.margin = '0';
-            activeDragElement.style.zIndex = '9999';
-            
-            sourceEl.style.opacity = '0.3';
-            document.getElementById('drag-layer').appendChild(activeDragElement);
 
-            document.addEventListener('mousemove', onDragMove);
-            document.addEventListener('touchmove', onDragMove, { passive: false });
-            document.addEventListener('mouseup', onDragEnd);
-            document.addEventListener('touchend', onDragEnd);
-            document.addEventListener('touchcancel', onDragEnd);
+            sourceEl.style.opacity = '0.25';
+            dragLayer.appendChild(activeDragElement);
         }
 
         function onDragMove(e) {
             if (!GameState.isDragging || !activeDragElement) return;
-            if (e.cancelable) e.preventDefault();
 
-            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+            activeDragElement.style.left = `${e.clientX - dragOffsetX}px`;
+            activeDragElement.style.top = `${e.clientY - dragOffsetY}px`;
 
-            activeDragElement.style.left = `${clientX - dragOffsetX}px`;
-            activeDragElement.style.top = `${clientY - dragOffsetY}px`;
-
-            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            const elementsBelow = document.elementsFromPoint(e.clientX, e.clientY);
             let hoveredCell = null;
             for (let el of elementsBelow) {
                 if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
@@ -1074,21 +1071,16 @@
         function onDragEnd(e) {
             if (!GameState.isDragging) return;
 
-            document.removeEventListener('mousemove', onDragMove);
-            document.removeEventListener('touchmove', onDragMove);
-            document.removeEventListener('mouseup', onDragEnd);
-            document.removeEventListener('touchend', onDragEnd);
-            document.removeEventListener('touchcancel', onDragEnd);
+            const dragLayer = document.getElementById('drag-layer');
+            dragLayer.innerHTML = '';
+            activeDragElement = null;
 
-            const clientX = e.type.startsWith('touch') ? (e.changedTouches?.[0]?.clientX || 0) : e.clientX;
-            const clientY = e.type.startsWith('touch') ? (e.changedTouches?.[0]?.clientY || 0) : e.clientY;
-
-            if (activeDragElement) {
-                activeDragElement.remove();
-                activeDragElement = null;
+            if (activeDragSourceEl) {
+                activeDragSourceEl.style.opacity = '1';
+                activeDragSourceEl = null;
             }
 
-            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            const elementsBelow = document.elementsFromPoint(e.clientX, e.clientY);
             let dropCell = null;
             for (let el of elementsBelow) {
                 if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
