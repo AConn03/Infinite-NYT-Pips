@@ -700,12 +700,10 @@
                 if (diff === 'easy') {
                     possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
                     if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
-                    if (Math.random() < 0.2) possibleRules.push({ type: 'NONE', target: null, label: '' });
                 } else if (diff === 'medium') {
                     possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
                     if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
                     if (allUnique) possibleRules.push({ type: 'NOT_EQUAL', target: null, label: '≠' });
-                    if (Math.random() < 0.1) possibleRules.push({ type: 'NONE', target: null, label: '' });
                 } else {
                     possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
                     if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
@@ -720,7 +718,7 @@
                     }
                 }
 
-                let nonSum = possibleRules.filter(r => r.type !== 'SUM' && r.type !== 'NONE');
+                let nonSum = possibleRules.filter(r => r.type !== 'SUM');
                 let selectedRule = (nonSum.length > 0 && Math.random() < 0.6) ? nonSum[Math.floor(Math.random() * nonSum.length)] : possibleRules[Math.floor(Math.random() * possibleRules.length)];
 
                 let badgeCell = reg.cells[0];
@@ -892,7 +890,7 @@
                         cellEl.addEventListener('mouseenter', () => handleCellHover(r, c, true));
                         cellEl.addEventListener('mouseleave', () => handleCellHover(r, c, false));
 
-                        if (region.rule !== 'NONE' && region.badgeCell.r === r && region.badgeCell.c === c) {
+                        if (region.badgeCell.r === r && region.badgeCell.c === c) {
                             const badge = document.createElement('div');
                             badge.className = 'region-badge';
                             badge.style.backgroundColor = region.color.badge;
