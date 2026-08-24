@@ -949,7 +949,6 @@
         let activeDragElement = null;
 
         function handleDominoInteraction(e, domino, isBoardDomino) {
-            // Prevent zooming/scrolling on mobile while engaging piece
             if (e.type === 'touchstart' && e.cancelable) e.preventDefault(); 
 
             const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
@@ -968,7 +967,9 @@
                     isDraggingStarted = true;
                     cleanup();
                     GameState.selectedDominoId = domino.id;
-                    startDrag(moveEv, domino, startX, startY, dragSourceEl);
+                    
+                    // Pass the resolved current touch/mouse coordinates
+                    startDrag(currentX, currentY, domino, dragSourceEl);
 
                     if (isBoardDomino) {
                         removeDominoFromBoard(domino.id, false); 
@@ -1002,30 +1003,33 @@
                 document.removeEventListener('touchmove', onPointerMove);
                 document.removeEventListener('mouseup', onPointerUp);
                 document.removeEventListener('touchend', onPointerUp);
+                document.removeEventListener('touchcancel', onPointerUp);
             };
 
             document.addEventListener('mousemove', onPointerMove);
             document.addEventListener('touchmove', onPointerMove, { passive: false });
             document.addEventListener('mouseup', onPointerUp);
             document.addEventListener('touchend', onPointerUp);
+            document.addEventListener('touchcancel', onPointerUp);
         }
 
-        function startDrag(e, domino, startX, startY, sourceEl) {
+        function startDrag(clientX, clientY, domino, sourceEl) {
             GameState.isDragging = true;
             GameState.draggedDominoId = domino.id;
 
             const rect = sourceEl.getBoundingClientRect();
-            dragOffsetX = startX - rect.left;
-            dragOffsetY = startY - rect.top;
+            dragOffsetX = clientX - rect.left;
+            dragOffsetY = clientY - rect.top;
 
             activeDragElement = sourceEl.cloneNode(true);
             activeDragElement.classList.add('dragging');
-            activeDragElement.style.position = 'absolute';
+            activeDragElement.style.position = 'fixed';
+            activeDragElement.style.pointerEvents = 'none';
             
             activeDragElement.style.width = `${rect.width}px`;
             activeDragElement.style.height = `${rect.height}px`;
-            activeDragElement.style.left = `${rect.left}px`;
-            activeDragElement.style.top = `${rect.top}px`;
+            activeDragElement.style.left = `${clientX - dragOffsetX}px`;
+            activeDragElement.style.top = `${clientY - dragOffsetY}px`;
             activeDragElement.style.margin = '0';
             activeDragElement.style.zIndex = '9999';
             
@@ -1033,9 +1037,10 @@
             document.getElementById('drag-layer').appendChild(activeDragElement);
 
             document.addEventListener('mousemove', onDragMove);
-            document.addEventListener('touchmove', onDragMove, {passive: false});
+            document.addEventListener('touchmove', onDragMove, { passive: false });
             document.addEventListener('mouseup', onDragEnd);
             document.addEventListener('touchend', onDragEnd);
+            document.addEventListener('touchcancel', onDragEnd);
         }
 
         function onDragMove(e) {
@@ -1048,7 +1053,6 @@
             activeDragElement.style.left = `${clientX - dragOffsetX}px`;
             activeDragElement.style.top = `${clientY - dragOffsetY}px`;
 
-            // Adjust elements below calculation to ignore the drag layer itself
             const elementsBelow = document.elementsFromPoint(clientX, clientY);
             let hoveredCell = null;
             for (let el of elementsBelow) {
@@ -1069,14 +1073,15 @@
 
         function onDragEnd(e) {
             if (!GameState.isDragging) return;
-            
-            const clientX = e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
-            const clientY = e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
 
             document.removeEventListener('mousemove', onDragMove);
             document.removeEventListener('touchmove', onDragMove);
             document.removeEventListener('mouseup', onDragEnd);
             document.removeEventListener('touchend', onDragEnd);
+            document.removeEventListener('touchcancel', onDragEnd);
+
+            const clientX = e.type.startsWith('touch') ? (e.changedTouches?.[0]?.clientX || 0) : e.clientX;
+            const clientY = e.type.startsWith('touch') ? (e.changedTouches?.[0]?.clientY || 0) : e.clientY;
 
             if (activeDragElement) {
                 activeDragElement.remove();
@@ -1098,7 +1103,7 @@
                 GameState.selectedDominoId = GameState.draggedDominoId;
                 handleCellClick(r, c);
             } else {
-                renderBoard(); // re-render board if dragged from there to clear opacity
+                renderBoard();
                 renderTray();
                 saveGame();
             }
