@@ -1,1231 +1,1455 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PIPS - Daily Domino Logic Game</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    * {
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    body {
-      background-color: #f1f5f9;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      overflow: hidden;
-      height: 100vh;
-      height: 100dvh;
-      margin: 0;
-    }
-
-    /* Board Container */
-    .board-card {
-      background-color: #f3efe6;
-      border-radius: 20px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-    }
-
-    /* Cell Internal Grid Lines */
-    .board-cell {
-      position: relative;
-      box-sizing: border-box;
-      transition: background-color 0.2s ease;
-    }
-    
-    .cell-inner-grid {
-      position: absolute;
-      inset: 0;
-      border: 1px dashed rgba(0, 0, 0, 0.15);
-      pointer-events: none;
-    }
-
-    /* Region Outer Borders */
-    .border-t-region { border-top: 3px solid var(--region-border-color) !important; }
-    .border-b-region { border-bottom: 3px solid var(--region-border-color) !important; }
-    .border-l-region { border-left: 3px solid var(--region-border-color) !important; }
-    .border-r-region { border-right: 3px solid var(--region-border-color) !important; }
-
-    /* Rule Diamond Badge */
-    .rule-badge {
-      position: absolute;
-      width: 32px;
-      height: 32px;
-      transform: translate(-50%, -50%) rotate(45deg);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
-      z-index: 25;
-      pointer-events: auto;
-      cursor: help;
-    }
-
-    .rule-badge-text {
-      transform: rotate(-45deg);
-      color: #ffffff;
-      font-weight: 800;
-      font-size: 13px;
-      line-height: 1;
-      white-space: nowrap;
-    }
-
-    /* Authentic Domino Styling */
-    .domino-tile {
-      background: linear-gradient(145deg, #ffffff, #f7f7f8);
-      border: 1.5px solid #cbd5e1;
-      border-bottom: 3px solid #94a3b8;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.9);
-      box-sizing: border-box;
-      display: flex;
-      position: relative;
-      cursor: grab;
-      transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s ease;
-      touch-action: none;
-    }
-
-    .domino-tile:active {
-      cursor: grabbing;
-    }
-
-    .domino-tile.vertical {
-      flex-direction: column;
-    }
-
-    .domino-half {
-      flex: 1;
-      position: relative;
-      width: 100%;
-      height: 100%;
-      box-sizing: border-box;
-    }
-
-    .domino-divider-h {
-      width: 1.5px;
-      height: 80%;
-      margin: auto 0;
-      background-color: #cbd5e1;
-    }
-
-    .domino-divider-v {
-      height: 1.5px;
-      width: 80%;
-      margin: 0 auto;
-      background-color: #cbd5e1;
-    }
-
-    /* Domino Pip Dot Hardcoded Layouts */
-    .pip-dot {
-      position: absolute;
-      width: 20%;
-      height: 20%;
-      background-color: #2b2d42;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: inset 0 1px 1px rgba(0,0,0,0.4);
-    }
-
-    /* Validated Region Glows */
-    .region-valid {
-      filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.4));
-    }
-    
-    .region-invalid {
-      filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.3));
-    }
-
-    /* Floating Drag Ghost */
-    #drag-ghost {
-      position: fixed;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      z-index: 9999;
-      display: none;
-      opacity: 0.92;
-      transform-origin: top left;
-      filter: drop-shadow(0 12px 20px rgba(0,0,0,0.25));
-    }
-
-    /* Modal Styling */
-    .modal-overlay {
-      background-color: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(4px);
-    }
-
-    /* Custom Scrollbar for Tray */
-    .tray-scroll::-webkit-scrollbar {
-      height: 6px;
-      width: 6px;
-    }
-    .tray-scroll::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-  </style>
-</head>
-<body class="flex flex-col h-screen w-screen overflow-hidden select-none">
-
-  <!-- Header -->
-  <header class="flex-none bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shadow-sm z-30">
-    <div class="flex items-center space-x-2">
-      <div class="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow">
-        ::
-      </div>
-      <h1 class="text-xl font-extrabold tracking-tight text-slate-900">PIPS</h1>
-    </div>
-
-    <div class="flex items-center space-x-2">
-      <button id="btn-sound" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition" title="Toggle Audio">
-        <svg id="icon-sound-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-        <svg id="icon-sound-off" class="w-5 h-5 hidden text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
-      </button>
-      <button id="btn-stats" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition" title="Statistics">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 012 2h2a2 2 0 012-2z"/></svg>
-      </button>
-    </div>
-  </header>
-
-  <!-- Control Bar -->
-  <div class="flex-none bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between text-sm">
-    <!-- Difficulty Selector -->
-    <div class="flex bg-slate-200/80 p-1 rounded-xl font-medium text-slate-700">
-      <button data-diff="easy" class="btn-diff px-3 py-1 rounded-lg transition font-semibold text-xs sm:text-sm">Easy</button>
-      <button data-diff="medium" class="btn-diff px-3 py-1 rounded-lg transition font-semibold text-xs sm:text-sm">Medium</button>
-      <button data-diff="hard" class="btn-diff px-3 py-1 rounded-lg transition font-semibold text-xs sm:text-sm">Hard</button>
-    </div>
-
-    <!-- Timer & Controls -->
-    <div class="flex items-center space-x-3">
-      <div class="flex items-center space-x-1.5 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm text-slate-700 font-mono font-bold text-xs sm:text-sm">
-        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span id="timer-display">00:00</span>
-      </div>
-      <button id="btn-restart" class="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 shadow-sm hover:bg-slate-50 transition" title="Reset Current Board">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-      </button>
-      <button id="btn-new" class="p-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow transition flex items-center space-x-1 px-2.5 font-medium text-xs sm:text-sm" title="New Puzzle">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        <span>New</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Main Game Layout -->
-  <main class="flex-1 flex flex-col min-h-0 relative p-2 sm:p-4 overflow-hidden items-center justify-between">
-    
-    <!-- Board Container Box -->
-    <div class="w-full flex-1 flex items-center justify-center min-h-0 relative">
-      <div id="board-card" class="board-card p-3 sm:p-5 relative flex items-center justify-center transition-all duration-300">
-        <div id="board-grid" class="relative">
-          <!-- Dynamically populated board grid & badges -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom Tray Section -->
-    <div class="w-full max-w-2xl flex-none bg-white rounded-2xl border border-slate-200/80 shadow-lg p-3 flex flex-col space-y-2 mt-2">
-      <div class="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-        <span class="flex items-center space-x-1.5">
-          <span>Dominoes</span>
-          <span id="tray-count" class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[11px] font-bold">0</span>
-        </span>
-        <span class="text-slate-400 font-normal hidden sm:inline">Tap tile in tray to rotate 90° • Drag to place</span>
-        <span class="text-slate-400 font-normal sm:hidden">Tap = Rotate • Drag = Place</span>
-      </div>
-
-      <!-- Scrollable Tray Area -->
-      <div id="domino-tray" class="tray-scroll flex flex-wrap items-center justify-center gap-3 p-2 min-h-[90px] max-h-[140px] overflow-y-auto bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
-        <!-- Tray Domino Items -->
-      </div>
-    </div>
-
-  </main>
-
-  <!-- Drag Ghost Canvas -->
-  <div id="drag-ghost"></div>
-
-  <!-- Win Modal -->
-  <div id="win-modal" class="modal-overlay fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 border border-slate-100 transform transition-all scale-95 opacity-0" id="win-modal-card">
-      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center font-bold text-3xl shadow-inner">
-        ✓
-      </div>
-      <div>
-        <h2 class="text-2xl font-extrabold text-slate-900">Puzzle Solved!</h2>
-        <p class="text-slate-500 text-sm mt-1">Excellent logic work!</p>
-      </div>
-
-      <div class="bg-slate-50 rounded-2xl p-4 flex justify-around border border-slate-100">
-        <div>
-          <div class="text-xs text-slate-400 uppercase font-semibold">Time</div>
-          <div id="win-time" class="text-xl font-mono font-bold text-slate-800">00:00</div>
-        </div>
-        <div class="w-px bg-slate-200"></div>
-        <div>
-          <div class="text-xs text-slate-400 uppercase font-semibold">Difficulty</div>
-          <div id="win-diff" class="text-xl font-bold text-slate-800 capitalize">Easy</div>
-        </div>
-      </div>
-
-      <button id="btn-win-next" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg transition transform active:scale-95">
-        Play Next Puzzle
-      </button>
-    </div>
-  </div>
-
-  <!-- Stats Modal -->
-  <div id="stats-modal" class="modal-overlay fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-100 relative">
-      <button id="btn-close-stats" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-
-      <h2 class="text-xl font-extrabold text-slate-900">Your Statistics</h2>
-
-      <div class="grid grid-cols-3 gap-3" id="stats-grid">
-        <!-- Stats populated via JS -->
-      </div>
-
-      <button id="btn-reset-stats" class="text-xs text-rose-500 hover:text-rose-700 font-semibold w-full text-center py-1">
-        Reset All Statistics
-      </button>
-    </div>
-  </div>
-
-  <script>
-    // Audio Synth Engine (Web Audio API)
-    class SoundEngine {
-      constructor() {
-        this.ctx = null;
-        this.enabled = true;
-      }
-      init() {
-        if (!this.ctx) {
-          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-      }
-      playClick() {
-        if (!this.enabled) return;
-        this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(400, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.04);
-        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.04);
-      }
-      playPlace() {
-        if (!this.enabled) return;
-        this.init();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.08);
-      }
-      playWin() {
-        if (!this.enabled) return;
-        this.init();
-        const notes = [261.63, 329.63, 392.00, 523.25];
-        notes.forEach((freq, idx) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
-          gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.08);
-          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.25);
-          osc.connect(gain);
-          gain.connect(this.ctx.destination);
-          osc.start(this.ctx.currentTime + idx * 0.08);
-          osc.stop(this.ctx.currentTime + idx * 0.08 + 0.25);
-        });
-      }
-    }
-
-    const sound = new SoundEngine();
-
-    // Color Palette for Regions
-    const REGION_PALETTES = [
-      { bg: '#e2d9f3', border: '#7c5295', text: '#ffffff' }, // Purple
-      { bg: '#fcd5ce', border: '#d94e67', text: '#ffffff' }, // Rose
-      { bg: '#c7ebd9', border: '#428a60', text: '#ffffff' }, // Sage Green
-      { bg: '#bae6fd', border: '#0284c7', text: '#ffffff' }, // Sky Blue
-      { bg: '#fef08a', border: '#ca8a04', text: '#ffffff' }, // Amber
-      { bg: '#fed7aa', border: '#ea580c', text: '#ffffff' }, // Orange
-      { bg: '#cbd5e1', border: '#475569', text: '#ffffff' }, // Slate
-      { bg: '#e9d5ff', border: '#9333ea', text: '#ffffff' }, // Lavender
-    ];
-
-    // Difficulty Configuration
-    const DIFF_CONFIG = {
-      easy: { dominoes: 4, rules: ['SUM', 'EQUAL'] },
-      medium: { dominoes: 8, rules: ['SUM', 'EQUAL', 'NOT_EQUAL'] },
-      hard: { dominoes: 12, rules: ['SUM', 'EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'LESS_THAN'] }
-    };
-
-    // State Variables
-    let currentDiff = 'easy';
-    let currentPuzzle = null;
-    let placedDominoes = []; // { id, dominoId, val1, val2, rot, x, y }
-    let trayDominoes = [];   // { id, val1, val2, rot }
-    let elapsedSeconds = 0;
-    let timerInterval = null;
-    let isSolved = false;
-    let cellSize = 56;
-
-    // Pointer Drag Tracking
-    let activeDrag = null;
-
-    // --- PIP DOT COORDINATES ---
-    function getPipPositions(val) {
-      // Return percentages [top%, left%] inside half square
-      switch(val) {
-        case 1: return [[50, 50]];
-        case 2: return [[26, 26], [74, 74]];
-        case 3: return [[24, 24], [50, 50], [76, 76]];
-        case 4: return [[26, 26], [26, 74], [74, 26], [74, 74]];
-        case 5: return [[24, 24], [24, 76], [50, 50], [76, 24], [76, 76]];
-        case 6: return [[24, 26], [24, 74], [50, 26], [50, 74], [76, 26], [76, 74]];
-        default: return [];
-      }
-    }
-
-    // --- DOMINO TILE RENDER HELPER ---
-    function createDominoElement(val1, val2, rot = 0, scale = 1, isTargetInBoard = false) {
-      const isVert = (rot === 90 || rot === 270);
-      const isFlipped = (rot === 180 || rot === 270);
-      
-      const v1 = isFlipped ? val2 : val1;
-      const v2 = isFlipped ? val1 : val2;
-
-      const tile = document.createElement('div');
-      tile.className = `domino-tile ${isVert ? 'vertical' : ''}`;
-      
-      const unitW = isVert ? cellSize : cellSize * 2;
-      const unitH = isVert ? cellSize * 2 : cellSize;
-
-      tile.style.width = `${unitW * scale}px`;
-      tile.style.height = `${unitH * scale}px`;
-
-      // Render Half 1
-      const half1 = document.createElement('div');
-      half1.className = 'domino-half';
-      getPipPositions(v1).forEach(([top, left]) => {
-        const pip = document.createElement('div');
-        pip.className = 'pip-dot';
-        pip.style.top = `${top}%`;
-        pip.style.left = `${left}%`;
-        half1.appendChild(pip);
-      });
-
-      // Divider Line
-      const divider = document.createElement('div');
-      divider.className = isVert ? 'domino-divider-v' : 'domino-divider-h';
-
-      // Render Half 2
-      const half2 = document.createElement('div');
-      half2.className = 'domino-half';
-      getPipPositions(v2).forEach(([top, left]) => {
-        const pip = document.createElement('div');
-        pip.className = 'pip-dot';
-        pip.style.top = `${top}%`;
-        pip.style.left = `${left}%`;
-        half2.appendChild(pip);
-      });
-
-      tile.appendChild(half1);
-      tile.appendChild(divider);
-      tile.appendChild(half2);
-
-      return tile;
-    }
-
-    // --- PROCEDURAL MAP GENERATOR ---
-    function generatePuzzle(difficulty) {
-      const config = DIFF_CONFIG[difficulty];
-      const dominoCount = config.dominoes;
-
-      // Pool of standard dominoes
-      const pool = [];
-      for(let i=0; i<=6; i++) {
-        for(let j=i; j<=6; j++) {
-          pool.push([i, j]);
-        }
-      }
-      // Shuffle pool
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
-
-      const chosenDominoes = pool.slice(0, dominoCount);
-
-      // Random Walk Placement on Grid
-      let placedPieces = []; // { domino: [val1, val2], x, y, rot }
-      let gridMap = new Map(); // key "x,y" => { val, regionId }
-
-      function isFree(x, y) {
-        return !gridMap.has(`${x},${y}`);
-      }
-
-      // First piece at 0,0
-      const firstRot = Math.random() > 0.5 ? 0 : 90;
-      const firstDom = chosenDominoes[0];
-      const firstPos = { domino: firstDom, x: 0, y: 0, rot: firstRot, id: 'sol-0' };
-      placedPieces.push(firstPos);
-      gridMap.set(`0,0`, { val: firstDom[0], pieceId: 0 });
-      if (firstRot === 0) gridMap.set(`1,0`, { val: firstDom[1], pieceId: 0 });
-      else gridMap.set(`0,1`, { val: firstDom[1], pieceId: 0 });
-
-      // Grow polyomino for remaining pieces
-      for (let i = 1; i < dominoCount; i++) {
-        const dom = chosenDominoes[i];
-        let placed = false;
-        let attempts = 0;
-
-        while (!placed && attempts < 200) {
-          attempts++;
-          // Pick an existing occupied cell to attach to
-          const existingKeys = Array.from(gridMap.keys());
-          const randKey = existingKeys[Math.floor(Math.random() * existingKeys.length)];
-          const [ex, ey] = randKey.split(',').map(Number);
-
-          // Try 4 directions
-          const dirs = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-          ];
-          const dir = dirs[Math.floor(Math.random() * dirs.length)];
-          const targetX = ex + dir.dx;
-          const targetY = ey + dir.dy;
-
-          // Try horizontal or vertical
-          const tryRot = Math.random() > 0.5 ? 0 : 90;
-          const c2x = tryRot === 0 ? targetX + 1 : targetX;
-          const c2y = tryRot === 90 ? targetY + 1 : targetY;
-
-          if (isFree(targetX, targetY) && isFree(c2x, c2y)) {
-            // Found valid location
-            placedPieces.push({ domino: dom, x: targetX, y: targetY, rot: tryRot, id: `sol-${i}` });
-            gridMap.set(`${targetX},${targetY}`, { val: dom[0], pieceId: i });
-            gridMap.set(`${c2x},${c2y}`, { val: dom[1], pieceId: i });
-            placed = true;
-          }
-        }
-
-        if (!placed) {
-          // Retry complete generation if stuck
-          return generatePuzzle(difficulty);
-        }
-      }
-
-      // Calculate Bounding Box and Normalize Coordinates to (0,0)
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      gridMap.forEach((_, key) => {
-        const [x, y] = key.split(',').map(Number);
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      });
-
-      const width = maxX - minX + 1;
-      const height = maxY - minY + 1;
-
-      // Re-map normalized grid
-      const normGridMap = new Map();
-      gridMap.forEach((data, key) => {
-        const [x, y] = key.split(',').map(Number);
-        normGridMap.set(`${x - minX},${y - minY}`, data);
-      });
-
-      // Divide Cells into Regions (Size 2 to 5)
-      const allCells = Array.from(normGridMap.keys());
-      const unassigned = new Set(allCells);
-      const regions = []; // { id, color, cells: ["x,y"], ruleType, targetVal, label }
-      let regionIdCounter = 0;
-
-      while (unassigned.size > 0) {
-        const startCell = Array.from(unassigned)[0];
-        const targetSize = Math.min(unassigned.size, Math.floor(Math.random() * 3) + 2); // 2 to 4
-        
-        const regionCells = [startCell];
-        unassigned.delete(startCell);
-
-        let queue = [startCell];
-        while (queue.length > 0 && regionCells.length < targetSize) {
-          const curr = queue.shift();
-          const [cx, cy] = curr.split(',').map(Number);
-          const neighbors = [
-            `${cx+1},${cy}`, `${cx-1},${cy}`, `${cx},${cy+1}`, `${cx},${cy-1}`
-          ].filter(n => unassigned.has(n));
-
-          for (const n of neighbors) {
-            if (regionCells.length < targetSize && unassigned.has(n)) {
-              regionCells.push(n);
-              unassigned.delete(n);
-              queue.push(n);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NYT Pips - Unlimited Domino Logic Puzzles</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        nyt: {
+                            bg: '#f4f5f7',
+                            card: '#ffffff',
+                            board: '#e8e5df',
+                        }
+                    }
+                }
             }
-          }
+        }
+    </script>
+    <style>
+        :root {
+            --cell-size: 64px;
         }
 
-        // If leftover single cell, append to last region if possible
-        if (regionCells.length === 1 && regions.length > 0) {
-          regions[regions.length - 1].cells.push(startCell);
-        } else {
-          regions.push({
-            id: regionIdCounter,
-            color: REGION_PALETTES[regionIdCounter % REGION_PALETTES.length],
-            cells: regionCells
-          });
-          regionIdCounter++;
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            background-color: #f4f5f7;
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh;
         }
-      }
 
-      // Assign Rules to Each Region Based on Solution Values
-      regions.forEach(reg => {
-        const vals = reg.cells.map(c => normGridMap.get(c).val);
-        const sum = vals.reduce((a, b) => a + b, 0);
-        const allEqual = vals.every(v => v === vals[0]);
-        const allUnique = new Set(vals).size === vals.length;
-
-        const allowedRules = config.rules.filter(r => {
-          if (r === 'EQUAL') return allEqual;
-          if (r === 'NOT_EQUAL') return allUnique && vals.length > 1;
-          return true;
-        });
-
-        const chosenRule = allowedRules[Math.floor(Math.random() * allowedRules.length)] || 'SUM';
-
-        reg.ruleType = chosenRule;
-        if (chosenRule === 'SUM') {
-          reg.label = `${sum}`;
-          reg.targetVal = sum;
-        } else if (chosenRule === 'EQUAL') {
-          reg.label = '=';
-        } else if (chosenRule === 'NOT_EQUAL') {
-          reg.label = '≠';
-        } else if (chosenRule === 'GREATER_THAN') {
-          const target = Math.max(0, sum - Math.floor(Math.random() * 3) - 1);
-          reg.label = `>${target}`;
-          reg.targetVal = target;
-        } else if (chosenRule === 'LESS_THAN') {
-          const target = sum + Math.floor(Math.random() * 3) + 1;
-          reg.label = `<${target}`;
-          reg.targetVal = target;
+        /* Domino & Pips Styling */
+        .domino-tile {
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+            touch-action: none;
+            background-color: #ffffff;
+            border-radius: 8px;
+            /* Authentic 3D look with clean edges matching reference */
+            box-shadow: 0 3px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 4px 6px rgba(0, 0, 0, 0.05);
+            position: relative;
+            z-index: 10;
+            box-sizing: border-box;
         }
-      });
-
-      // Prepare Tray Pieces (Shuffled with initial rotation 0)
-      const trayPieces = chosenDominoes.map((dom, idx) => ({
-        id: `piece-${idx}`,
-        val1: dom[0],
-        val2: dom[1],
-        rot: 0
-      }));
-      // Shuffle tray
-      for (let i = trayPieces.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [trayPieces[i], trayPieces[j]] = [trayPieces[j], trayPieces[i]];
-      }
-
-      return {
-        width,
-        height,
-        gridMap: normGridMap,
-        regions,
-        trayDominoes: trayPieces
-      };
-    }
-
-    // --- BOARD CALCULATIONS & RENDERING ---
-    function renderBoard() {
-      const card = document.getElementById('board-card');
-      const gridEl = document.getElementById('board-grid');
-      gridEl.innerHTML = '';
-
-      if (!currentPuzzle) return;
-
-      // Screen responsive cell size calculation
-      const containerW = window.innerWidth * 0.9;
-      const containerH = window.innerHeight * 0.52;
-      const maxWCell = Math.floor(containerW / (currentPuzzle.width + 0.5));
-      const maxHCell = Math.floor(containerH / (currentPuzzle.height + 0.5));
-      cellSize = Math.max(38, Math.min(64, Math.min(maxWCell, maxHCell)));
-
-      const totalW = currentPuzzle.width * cellSize;
-      const totalH = currentPuzzle.height * cellSize;
-
-      gridEl.style.width = `${totalW}px`;
-      gridEl.style.height = `${totalH}px`;
-
-      // Map cell to region
-      const cellRegionMap = new Map();
-      currentPuzzle.regions.forEach(reg => {
-        reg.cells.forEach(c => cellRegionMap.set(c, reg));
-      });
-
-      // Check validation state for each region
-      const regionValidation = new Map();
-      currentPuzzle.regions.forEach(reg => {
-        regionValidation.set(reg.id, validateRegion(reg));
-      });
-
-      // Render Region Cells
-      for (let y = 0; y < currentPuzzle.height; y++) {
-        for (let x = 0; x < currentPuzzle.width; x++) {
-          const key = `${x},${y}`;
-          if (!currentPuzzle.gridMap.has(key)) continue;
-
-          const reg = cellRegionMap.get(key);
-          const cellEl = document.createElement('div');
-          cellEl.className = 'board-cell absolute';
-          cellEl.style.width = `${cellSize}px`;
-          cellEl.style.height = `${cellSize}px`;
-          cellEl.style.left = `${x * cellSize}px`;
-          cellEl.style.top = `${y * cellSize}px`;
-          cellEl.style.backgroundColor = reg.color.bg;
-
-          // Interior grid line
-          const innerGrid = document.createElement('div');
-          innerGrid.className = 'cell-inner-grid';
-          cellEl.appendChild(innerGrid);
-
-          // Outer Borders for Region Edges
-          cellEl.style.setProperty('--region-border-color', reg.color.border);
-          if (!currentPuzzle.gridMap.has(`${x},${y-1}`) || cellRegionMap.get(`${x},${y-1}`)?.id !== reg.id) {
-            cellEl.classList.add('border-t-region');
-          }
-          if (!currentPuzzle.gridMap.has(`${x},${y+1}`) || cellRegionMap.get(`${x},${y+1}`)?.id !== reg.id) {
-            cellEl.classList.add('border-b-region');
-          }
-          if (!currentPuzzle.gridMap.has(`${x-1},${y}`) || cellRegionMap.get(`${x-1},${y}`)?.id !== reg.id) {
-            cellEl.classList.add('border-l-region');
-          }
-          if (!currentPuzzle.gridMap.has(`${x+1},${y}`) || cellRegionMap.get(`${x+1},${y}`)?.id !== reg.id) {
-            cellEl.classList.add('border-r-region');
-          }
-
-          gridEl.appendChild(cellEl);
-        }
-      }
-
-      // Render Region Rule Diamond Badges
-      currentPuzzle.regions.forEach(reg => {
-        // Find bottom-leftmost boundary cell for diamond badge
-        let badgeCell = reg.cells[0];
-        let maxScore = -Infinity;
-        reg.cells.forEach(c => {
-          const [cx, cy] = c.split(',').map(Number);
-          const score = cy * 100 - cx; // bottom-left preference
-          if (score > maxScore) {
-            maxScore = score;
-            badgeCell = c;
-          }
-        });
-
-        const [bx, by] = badgeCell.split(',').map(Number);
-
-        const badge = document.createElement('div');
-        badge.className = 'rule-badge';
-        badge.style.backgroundColor = reg.color.border;
-
-        // Position on lower-right cell vertex
-        badge.style.left = `${(bx + 0.5) * cellSize}px`;
-        badge.style.top = `${(by + 1) * cellSize}px`;
-
-        const text = document.createElement('span');
-        text.className = 'rule-badge-text';
-        text.innerText = reg.label;
-        badge.appendChild(text);
-
-        gridEl.appendChild(badge);
-      });
-
-      // Render Placed Domino Tiles
-      placedDominoes.forEach(placed => {
-        const domEl = createDominoElement(placed.val1, placed.val2, placed.rot, 1, true);
-        domEl.style.position = 'absolute';
-        domEl.style.left = `${placed.x * cellSize}px`;
-        domEl.style.top = `${placed.y * cellSize}px`;
-        domEl.style.zIndex = '20';
-        domEl.dataset.placedId = placed.id;
-
-        // Unified Pointer Events for Placed Piece
-        attachPointerHandlers(domEl, placed, 'board');
-
-        gridEl.appendChild(domEl);
-      });
-
-      renderTray();
-    }
-
-    // --- TRAY RENDERING ---
-    function renderTray() {
-      const trayEl = document.getElementById('domino-tray');
-      trayEl.innerHTML = '';
-
-      document.getElementById('tray-count').innerText = trayDominoes.length;
-
-      if (trayDominoes.length === 0) {
-        trayEl.innerHTML = `<span class="text-xs text-slate-400 font-medium my-auto">All dominoes placed on board!</span>`;
-        return;
-      }
-
-      trayDominoes.forEach(dom => {
-        const domWrap = document.createElement('div');
-        domWrap.className = 'relative flex items-center justify-center p-1 rounded-xl transition hover:bg-slate-200/50';
-
-        const domEl = createDominoElement(dom.val1, dom.val2, dom.rot, 0.85);
-        domEl.dataset.trayId = dom.id;
-
-        attachPointerHandlers(domEl, dom, 'tray');
-
-        domWrap.appendChild(domEl);
-        trayEl.appendChild(domWrap);
-      });
-    }
-
-    // --- REGION RULE VALIDATION ---
-    function getBoardPipValueAt(x, y) {
-      for (const p of placedDominoes) {
-        const isVert = (p.rot === 90 || p.rot === 270);
-        const isFlipped = (p.rot === 180 || p.rot === 270);
-
-        const v1 = isFlipped ? p.val2 : p.val1;
-        const v2 = isFlipped ? p.val1 : p.val2;
-
-        if (p.x === x && p.y === y) return v1;
-        if (isVert && p.x === x && p.y === y + 1) return v2;
-        if (!isVert && p.x === x + 1 && p.y === y) return v2;
-      }
-      return null;
-    }
-
-    function validateRegion(region) {
-      const values = [];
-      for (const cellKey of region.cells) {
-        const [cx, cy] = cellKey.split(',').map(Number);
-        const val = getBoardPipValueAt(cx, cy);
-        if (val === null) return 'incomplete';
-        values.push(val);
-      }
-
-      const sum = values.reduce((a, b) => a + b, 0);
-
-      switch (region.ruleType) {
-        case 'SUM':
-          return sum === region.targetVal ? 'valid' : 'invalid';
-        case 'EQUAL':
-          return values.every(v => v === values[0]) ? 'valid' : 'invalid';
-        case 'NOT_EQUAL':
-          return new Set(values).size === values.length ? 'valid' : 'invalid';
-        case 'GREATER_THAN':
-          return sum > region.targetVal ? 'valid' : 'invalid';
-        case 'LESS_THAN':
-          return sum < region.targetVal ? 'valid' : 'invalid';
-        default:
-          return 'valid';
-      }
-    }
-
-    function checkWinCondition() {
-      if (placedDominoes.length < currentPuzzle.trayDominoes.length + placedDominoes.length) return false;
-
-      for (const reg of currentPuzzle.regions) {
-        if (validateRegion(reg) !== 'valid') return false;
-      }
-
-      // Solved!
-      isSolved = true;
-      clearInterval(timerInterval);
-      sound.playWin();
-
-      // Save Stats
-      saveWinStats();
-
-      // Show Win Modal
-      setTimeout(() => {
-        document.getElementById('win-time').innerText = formatTime(elapsedSeconds);
-        document.getElementById('win-diff').innerText = currentDiff;
-
-        const modal = document.getElementById('win-modal');
-        const card = document.getElementById('win-modal-card');
-        modal.classList.remove('hidden');
-        setTimeout(() => {
-          card.classList.remove('scale-95', 'opacity-0');
-          card.classList.add('scale-100', 'opacity-100');
-        }, 10);
-      }, 300);
-
-      return true;
-    }
-
-    // --- UNIFIED POINTER DRAG & DROP CONTROLLER ---
-    function attachPointerHandlers(element, dominoData, source) {
-      element.addEventListener('pointerdown', (e) => {
-        if (isSolved) return;
-        e.preventDefault();
-
-        const rect = element.getBoundingClientRect();
         
-        activeDrag = {
-          data: dominoData,
-          source: source,
-          startX: e.clientX,
-          startY: e.clientY,
-          offsetX: e.clientX - rect.left,
-          offsetY: e.clientY - rect.top,
-          isDragging: false,
-          element: element
+        .domino-tile.dragging {
+            z-index: 50 !important;
+            transform: scale(1.15) translateY(-4px);
+            box-shadow: 0 8px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 12px 20px rgba(0, 0, 0, 0.15);
+            opacity: 0.95;
+        }
+
+        .domino-tile.selected {
+            box-shadow: 0 0 0 3px #3b82f6, 0 8px 15px rgba(59, 130, 246, 0.3);
+            transform: translateY(-4px) scale(1.05);
+        }
+
+        /* Clean dividers */
+        .domino-divider-v { width: 1px; height: 100%; background-color: #cbd5e1; }
+        .domino-divider-h { width: 100%; height: 1px; background-color: #cbd5e1; }
+
+        /* Hardcoded absolute positioning for flawless scaling */
+        .pip-face {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .pip {
+            position: absolute;
+            width: 24%;
+            height: 24%;
+            border-radius: 50%;
+            background-color: #4b5563; /* Tailwind slate-600 */
+            transform: translate(-50%, -50%);
+        }
+
+        /* Board Styling */
+        #board-container {
+            background-color: #f0ebe1; /* Canvas color */
+            border-radius: 16px;
+            padding: 16px;
+            display: inline-block;
+        }
+
+        .board-grid {
+            display: grid;
+            gap: 0px; /* Cells touch each other */
+            position: relative;
+        }
+
+        .cell-item {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .cell-empty {
+            background: transparent !important;
+            border: none !important;
+            pointer-events: none;
+        }
+
+        /* Region Constraint Diamond Badge */
+        .region-badge {
+            position: absolute;
+            width: calc(var(--cell-size) * 0.48);
+            height: calc(var(--cell-size) * 0.48);
+            transform: rotate(45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            bottom: calc(var(--cell-size) * -0.24);
+            right: calc(var(--cell-size) * -0.24);
+        }
+        .region-badge-inner {
+            transform: rotate(-45deg);
+            font-weight: 900;
+            font-family: 'Outfit', sans-serif;
+            font-size: calc(var(--cell-size) * 0.22);
+            color: white;
+            text-align: center;
+            line-height: 1;
+        }
+
+        /* Grid drop preview */
+        .cell-hover-valid {
+            background-color: rgba(255, 255, 255, 0.5) !important;
+            box-shadow: inset 0 0 0 2px #3b82f6;
+        }
+        .cell-hover-invalid {
+            background-color: rgba(239, 68, 68, 0.3) !important;
+            box-shadow: inset 0 0 0 2px #ef4444;
+        }
+
+        /* Animations */
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes pulse-border {
+            0% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); }
+            100% { border-color: rgba(59, 130, 246, 0.5); }
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        /* Drag container */
+        #drag-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="flex flex-col font-sans antialiased text-slate-800">
+
+    <!-- Top Header -->
+    <header class="bg-white border-b border-slate-200 shrink-0 z-30 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-display font-extrabold text-lg shadow">
+                    ::
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg tracking-tight text-slate-900 leading-none">PIPS</h1>
+                    <p class="text-[10px] text-slate-500 font-medium hidden sm:block">Domino Logic Puzzle</p>
+                </div>
+            </div>
+
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-1 sm:gap-2">
+                <button id="btn-sound" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="Toggle Sound">
+                    <i class="fa-solid fa-volume-high text-xs"></i>
+                </button>
+                <button id="btn-how-to-play" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="How to Play">
+                    <i class="fa-solid fa-circle-question text-xs"></i>
+                </button>
+                <button id="btn-stats" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition" title="Statistics">
+                    <i class="fa-solid fa-chart-column text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 min-h-0 max-w-6xl w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 flex flex-col overflow-hidden">
+        
+        <!-- Controls & Level Selector Bar -->
+        <div class="bg-white rounded-2xl p-2 sm:p-3 shadow-sm border border-slate-200 mb-2 shrink-0 flex flex-wrap items-center justify-between gap-2">
+            <!-- Difficulty Selector Tabs -->
+            <div class="flex bg-slate-100 p-1 rounded-xl gap-1 text-xs font-semibold">
+                <button data-diff="easy" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Easy</button>
+                <button data-diff="medium" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Medium</button>
+                <button data-diff="hard" class="diff-btn px-2 sm:px-3 py-1 rounded-lg transition text-slate-600 hover:text-slate-900">Hard</button>
+            </div>
+
+            <!-- Timer & Actions -->
+            <div class="flex items-center gap-2 ml-auto">
+                <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-xl text-slate-700 font-mono text-xs md:text-sm font-bold">
+                    <i class="fa-regular fa-clock text-slate-400"></i>
+                    <span id="timer-display">00:00</span>
+                </div>
+                <button id="btn-reset" class="w-8 h-8 sm:w-auto sm:px-3 sm:py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5" title="Reset Current Board">
+                    <i class="fa-solid fa-rotate-right"></i> <span class="hidden sm:inline">Reset</span>
+                </button>
+                <button id="btn-new-game" class="px-2 sm:px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">New Level</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Game Work Area -->
+        <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 items-stretch overflow-hidden">
+            
+            <!-- Left Panel: Puzzle Grid -->
+            <div class="w-full flex-1 lg:w-3/5 xl:w-2/3 bg-white rounded-2xl p-2 md:p-4 shadow-sm border border-slate-200 flex flex-col items-center justify-center min-h-0 relative overflow-hidden">
+                <div id="board-scroll-container" class="w-full h-full flex items-center justify-center overflow-hidden p-1">
+                    <div id="board-container" class="relative transition-all duration-200">
+                        <!-- Dynamic Grid will be injected here -->
+                    </div>
+                </div>
+
+                <div id="status-toast" class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-medium bg-slate-800 text-white px-3 py-1 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-40 whitespace-nowrap">
+                    Message
+                </div>
+            </div>
+
+            <!-- Right Panel: Tile Tray & Controls -->
+            <div class="w-full h-1/3 min-h-[140px] lg:h-full lg:w-2/5 xl:w-1/3 bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex flex-col shrink-0 lg:shrink min-h-0">
+                <div class="flex flex-col h-full min-h-0">
+                    <div class="flex items-center justify-between mb-2 border-b border-slate-100 pb-1.5 shrink-0">
+                        <h2 class="font-display font-bold text-slate-900 text-sm flex items-center gap-2">
+                            Dominoes
+                            <span id="tiles-count" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">0</span>
+                        </h2>
+                        <span class="text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                            <i class="fa-solid fa-arrows-spin mr-1"></i>Tap to rotate
+                        </span>
+                    </div>
+
+                    <!-- Domino Tiles Pool Container -->
+                    <div id="tiles-tray" class="flex-1 min-h-0 overflow-y-auto content-start flex flex-wrap gap-2 sm:gap-3 justify-center p-2 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                        <!-- Dominoes rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Hidden drag layer -->
+    <div id="drag-layer"></div>
+
+    <!-- Modal: Statistics -->
+    <div id="modal-stats" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 class="font-display font-bold text-2xl text-slate-900 mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-blue-600"></i> Statistics
+            </h3>
+            <p class="text-xs text-slate-500 mb-6">Track your lifetime puzzle performance.</p>
+
+            <div id="stats-container" class="space-y-4">
+                <!-- Stats injected dynamically -->
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                <button id="btn-reset-stats" class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">Reset Stats</button>
+                <button class="modal-close px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow hover:bg-slate-800 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: How to Play -->
+    <div id="modal-howto" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
+            <button class="modal-close absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 class="font-display font-bold text-2xl text-slate-900 mb-2">How to Play Pips</h3>
+            <p class="text-sm text-slate-600 mb-6 leading-relaxed">
+                Place all your dominoes onto the board so that every colored region follows its specific rule.
+            </p>
+
+            <div class="space-y-5 text-sm">
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">1</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Place & Rotate</strong>
+                        <p class="text-slate-600 leading-snug">Drag dominoes from the tray onto the board. <strong>Tap a domino to rotate it.</strong></p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">2</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Cross Borders</strong>
+                        <p class="text-slate-600 leading-snug">Dominoes take up two squares. A domino can cross the border between two different colored regions.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 items-start">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 font-bold flex items-center justify-center shrink-0 text-lg shadow-sm">3</div>
+                    <div>
+                        <strong class="text-slate-900 block font-bold mb-1 text-base">Follow the Diamond</strong>
+                        <p class="text-slate-600 leading-snug mb-2">The diamond on the corner of a region tells you the rule for <em>all</em> the domino halves placed inside that color.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">12</span> Sum must be 12</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">=</span> All numbers identical</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">≠</span> All numbers distinct</div>
+                            <div class="flex items-center gap-2"><span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded text-center w-7">&lt;8</span> Sum less than 8</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="modal-close w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-base shadow-md transition-transform active:scale-95">Got it, let's play!</button>
+        </div>
+    </div>
+
+    <!-- Modal: Victory / Solved -->
+    <div id="modal-victory" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center relative transform transition-all scale-95 opacity-0" id="victory-card">
+            <div class="absolute -top-10 left-1/2 transform -translate-x-1/2">
+                <div class="w-20 h-20 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white rounded-2xl flex items-center justify-center text-4xl shadow-xl rotate-12">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+            </div>
+            
+            <h3 class="font-display font-extrabold text-3xl text-slate-900 mt-10 mb-1">Excellent!</h3>
+            <p id="victory-diff-label" class="text-xs uppercase font-bold tracking-widest text-emerald-600 mb-6">EASY PUZZLE SOLVED</p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 flex justify-around">
+                <div class="text-center">
+                    <div class="text-2xs text-slate-400 font-bold uppercase tracking-wide mb-1">Time</div>
+                    <div id="victory-time" class="font-mono text-2xl font-bold text-slate-800">01:23</div>
+                </div>
+                <div class="w-px bg-slate-200"></div>
+                <div class="text-center">
+                    <div class="text-2xs text-slate-400 font-bold uppercase tracking-wide mb-1">Best</div>
+                    <div id="victory-best" class="font-mono text-2xl font-bold text-blue-600">00:45</div>
+                </div>
+            </div>
+
+            <button id="btn-victory-next" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                Play Next Level <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Audio Effects Synthesizer using Web Audio API
+        const AudioFX = {
+            ctx: null,
+            muted: false,
+            init() {
+                try {
+                    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                } catch(e) {
+                    console.warn("Web Audio API not supported");
+                }
+            },
+            playTone(freq, type, duration, vol) {
+                if (this.muted || !this.ctx) return;
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            },
+            playClick() { this.playTone(600, 'sine', 0.05, 0.1); },
+            playSnap() { this.playTone(300, 'triangle', 0.1, 0.15); },
+            playError() { this.playTone(150, 'sawtooth', 0.15, 0.1); },
+            playRotate() { this.playTone(800, 'sine', 0.03, 0.05); },
+            playWin() {
+                if (this.muted || !this.ctx) return;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'sine', 0.4, 0.1), idx * 100);
+                });
+            }
         };
 
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
-        window.addEventListener('pointercancel', onPointerUp);
-      });
-    }
+        const REGION_PALETTE = [
+            { bg: '#d4a27f', border: '#b07040', text: 'white', badge: '#d35400' }, // Orange
+            { bg: '#a3b19b', border: '#708260', text: 'white', badge: '#556b2f' }, // Olive
+            { bg: '#919db4', border: '#607090', text: 'white', badge: '#1a3b5c' }, // Blue-gray
+            { bg: '#e5a5a5', border: '#c07070', text: 'white', badge: '#d81b60' }, // Pink
+            { bg: '#9bbdbd', border: '#609090', text: 'white', badge: '#00838f' }, // Teal
+            { bg: '#bfa3c4', border: '#9060a0', text: 'white', badge: '#8e44ad' }, // Purple
+            { bg: '#e5ccb8', border: '#c0a080', text: 'white', badge: '#a0522d' }, // Tan
+        ];
 
-    function onPointerMove(e) {
-      if (!activeDrag) return;
+        const GameState = {
+            difficulty: 'easy', 
+            rows: 0,
+            cols: 0,
+            boardMask: [], 
+            board: [], 
+            regions: [], 
+            dominoes: [], 
+            selectedDominoId: null,
+            lastPlacedDominoId: null,
+            timerSeconds: 0,
+            timerInterval: null,
+            isDragging: false,
+            draggedDominoId: null,
+            stats: {
+                easy: { played: 0, won: 0, totalTime: 0, bestTime: null },
+                medium: { played: 0, won: 0, totalTime: 0, bestTime: null },
+                hard: { played: 0, won: 0, totalTime: 0, bestTime: null }
+            }
+        };
 
-      const dx = e.clientX - activeDrag.startX;
-      const dy = e.clientY - activeDrag.startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      // Start drag threshold
-      if (!activeDrag.isDragging && dist > 8) {
-        activeDrag.isDragging = true;
-
-        // Show Drag Ghost
-        const ghost = document.getElementById('drag-ghost');
-        ghost.innerHTML = '';
-        const ghostDom = createDominoElement(activeDrag.data.val1, activeDrag.data.val2, activeDrag.data.rot, 1);
-        ghost.appendChild(ghostDom);
-        ghost.style.display = 'block';
-
-        // Dim source element
-        activeDrag.element.style.opacity = '0.3';
-      }
-
-      if (activeDrag.isDragging) {
-        const ghost = document.getElementById('drag-ghost');
-        ghost.style.left = `${e.clientX - activeDrag.offsetX}px`;
-        ghost.style.top = `${e.clientY - activeDrag.offsetY}px`;
-      }
-    }
-
-    function onPointerUp(e) {
-      if (!activeDrag) return;
-
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
-
-      const ghost = document.getElementById('drag-ghost');
-      ghost.style.display = 'none';
-      if (activeDrag.element) activeDrag.element.style.opacity = '1';
-
-      if (!activeDrag.isDragging) {
-        // --- TAP / CLICK ACTION ---
-        if (activeDrag.source === 'tray') {
-          // Rotate in tray
-          activeDrag.data.rot = (activeDrag.data.rot + 90) % 360;
-          sound.playClick();
-          renderTray();
-          saveGameState();
-        } else if (activeDrag.source === 'board') {
-          // Return from board to tray
-          placedDominoes = placedDominoes.filter(p => p.id !== activeDrag.data.id);
-          trayDominoes.push({
-            id: activeDrag.data.dominoId || activeDrag.data.id,
-            val1: activeDrag.data.val1,
-            val2: activeDrag.data.val2,
-            rot: activeDrag.data.rot
-          });
-          sound.playClick();
-          renderBoard();
-          saveGameState();
+        function loadStats() {
+            try {
+                const saved = localStorage.getItem('nyt_pips_stats_v3');
+                if (saved) GameState.stats = JSON.parse(saved);
+            } catch(e) {}
         }
-      } else {
-        // --- DRAG DROP ACTION ---
-        const boardCard = document.getElementById('board-grid');
-        const boardRect = boardCard.getBoundingClientRect();
 
-        // Calculate target cell on board
-        const dropX = e.clientX - activeDrag.offsetX;
-        const dropY = e.clientY - activeDrag.offsetY;
+        function saveStats() {
+            try {
+                localStorage.setItem('nyt_pips_stats_v3', JSON.stringify(GameState.stats));
+            } catch(e) {}
+        }
 
-        const cellX = Math.round((dropX - boardRect.left) / cellSize);
-        const cellY = Math.round((dropY - boardRect.top) / cellSize);
+        function saveGame() {
+            try {
+                const stateToSave = {
+                    difficulty: GameState.difficulty,
+                    rows: GameState.rows,
+                    cols: GameState.cols,
+                    boardMask: GameState.boardMask,
+                    board: GameState.board,
+                    regions: GameState.regions,
+                    dominoes: GameState.dominoes,
+                    timerSeconds: GameState.timerSeconds
+                };
+                localStorage.setItem('nyt_pips_save_v2', JSON.stringify(stateToSave));
+            } catch(e) {}
+        }
 
-        const rot = activeDrag.data.rot;
-        const isVert = (rot === 90 || rot === 270);
+        function clearSave() {
+            try {
+                localStorage.removeItem('nyt_pips_save_v2');
+            } catch(e) {}
+        }
 
-        const c1Key = `${cellX},${cellY}`;
-        const c2Key = isVert ? `${cellX},${cellY + 1}` : `${cellX + 1},${cellY}`;
+        function loadGame() {
+            try {
+                const saved = localStorage.getItem('nyt_pips_save_v2');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    Object.assign(GameState, state);
+                    
+                    document.querySelectorAll('.diff-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                        b.classList.add('text-slate-600');
+                        if (b.dataset.diff === GameState.difficulty) {
+                            b.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                            b.classList.remove('text-slate-600');
+                        }
+                    });
+                    
+                    startTimer(true);
+                    renderBoard();
+                    renderTray();
+                    validateBoard();
+                    return true;
+                }
+            } catch(e) {}
+            return false;
+        }
 
-        // Validate if cells exist on board
-        const isValidPlacement = currentPuzzle.gridMap.has(c1Key) && currentPuzzle.gridMap.has(c2Key);
+        function generatePuzzle(diff) {
+            GameState.difficulty = diff;
+            
+            let numDominoes;
+            if (diff === 'easy') numDominoes = Math.floor(Math.random() * 2) + 4; // 4-5
+            else if (diff === 'medium') numDominoes = Math.floor(Math.random() * 3) + 7; // 7-9
+            else numDominoes = Math.floor(Math.random() * 4) + 11; // 11-14
 
-        // Check overlapping placed dominoes (excluding self if moving on board)
-        const isOccupied = placedDominoes.some(p => {
-          if (activeDrag.source === 'board' && p.id === activeDrag.data.id) return false;
-          const pVert = (p.rot === 90 || p.rot === 270);
-          const p1 = `${p.x},${p.y}`;
-          const p2 = pVert ? `${p.x},${p.y + 1}` : `${p.x + 1},${p.y}`;
-          return (p1 === c1Key || p1 === c2Key || p2 === c1Key || p2 === c2Key);
-        });
+            const GRID_SIZE = 40;
+            let tempGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(-1));
+            let tilingDoms = [];
+            let placedCells = new Set();
 
-        if (isValidPlacement && !isOccupied) {
-          // Move or Place Domino
-          if (activeDrag.source === 'board') {
-            placedDominoes = placedDominoes.filter(p => p.id !== activeDrag.data.id);
-          } else {
-            trayDominoes = trayDominoes.filter(t => t.id !== activeDrag.data.id);
-          }
+            function addTilingDomino(r1, c1, r2, c2, id) {
+                tempGrid[r1][c1] = id;
+                tempGrid[r2][c2] = id;
+                tilingDoms.push({id, cells:[{r:r1, c:c1}, {r:r2, c:c2}]});
+                placedCells.add(`${r1},${c1}`);
+                placedCells.add(`${r2},${c2}`);
+            }
 
-          placedDominoes.push({
-            id: `placed-${Date.now()}-${Math.random()}`,
-            dominoId: activeDrag.data.dominoId || activeDrag.data.id,
-            val1: activeDrag.data.val1,
-            val2: activeDrag.data.val2,
-            rot: activeDrag.data.rot,
-            x: cellX,
-            y: cellY
-          });
+            addTilingDomino(20, 20, 20, 21, 1);
 
-          sound.playPlace();
-          renderBoard();
-          saveGameState();
-          checkWinCondition();
-        } else {
-          // Invalid drop -> Return to Tray if from board, or keep in tray
-          if (activeDrag.source === 'board') {
-            placedDominoes = placedDominoes.filter(p => p.id !== activeDrag.data.id);
-            trayDominoes.push({
-              id: activeDrag.data.dominoId || activeDrag.data.id,
-              val1: activeDrag.data.val1,
-              val2: activeDrag.data.val2,
-              rot: activeDrag.data.rot
+            for (let i = 2; i <= numDominoes; i++) {
+                let possibleSlots = [];
+                let emptyAdj = new Set();
+                
+                for (let str of placedCells) {
+                    let [r, c] = str.split(',').map(Number);
+                    [[r-1,c], [r+1,c], [r,c-1], [r,c+1]].forEach(([nr, nc]) => {
+                        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && tempGrid[nr][nc] === -1) {
+                            emptyAdj.add(`${nr},${nc}`);
+                        }
+                    });
+                }
+
+                for (let str of emptyAdj) {
+                    let [r, c] = str.split(',').map(Number);
+                    [[r-1,c], [r+1,c], [r,c-1], [r,c+1]].forEach(([nr, nc]) => {
+                        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && tempGrid[nr][nc] === -1 && `${nr},${nc}` !== str) {
+                            let p1 = `${r},${c}`, p2 = `${nr},${nc}`;
+                            let slotKey = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+                            possibleSlots.push({key: slotKey, r1: r, c1: c, r2: nr, c2: nc});
+                        }
+                    });
+                }
+
+                let uniqueSlots = Array.from(new Map(possibleSlots.map(s => [s.key, s])).values());
+                if (uniqueSlots.length === 0) break;
+
+                let slot = uniqueSlots[Math.floor(Math.random() * uniqueSlots.length)];
+                addTilingDomino(slot.r1, slot.c1, slot.r2, slot.c2, i);
+            }
+
+            let minR = GRID_SIZE, maxR = 0, minC = GRID_SIZE, maxC = 0;
+            for (let str of placedCells) {
+                let [r, c] = str.split(',').map(Number);
+                if (r < minR) minR = r;
+                if (r > maxR) maxR = r;
+                if (c < minC) minC = c;
+                if (c > maxC) maxC = c;
+            }
+
+            let R = maxR - minR + 1;
+            let C = maxC - minC + 1;
+            let mask = Array(R).fill(0).map(() => Array(C).fill(0));
+            let finalTiling = [];
+
+            tilingDoms.forEach(d => {
+                let nr1 = d.cells[0].r - minR;
+                let nc1 = d.cells[0].c - minC;
+                let nr2 = d.cells[1].r - minR;
+                let nc2 = d.cells[1].c - minC;
+                mask[nr1][nc1] = 1;
+                mask[nr2][nc2] = 1;
+                finalTiling.push({ id: d.id, cells: [{r: nr1, c: nc1}, {r: nr2, c: nc2}] });
             });
+
+            GameState.rows = R;
+            GameState.cols = C;
+            GameState.boardMask = mask;
+
+            const allDominoPairs = [];
+            for (let i = 0; i <= 6; i++) {
+                for (let j = i; j <= 6; j++) {
+                    allDominoPairs.push([i, j]);
+                }
+            }
+            allDominoPairs.sort(() => Math.random() - 0.5);
+            const selectedPairs = allDominoPairs.slice(0, numDominoes);
+
+            const solutionValues = Array(R).fill(0).map(() => Array(C).fill(null));
+            const dominoesList = [];
+
+            finalTiling.forEach((t, idx) => {
+                let pair = selectedPairs[idx];
+                if (Math.random() < 0.5) pair = [pair[1], pair[0]];
+
+                solutionValues[t.cells[0].r][t.cells[0].c] = pair[0];
+                solutionValues[t.cells[1].r][t.cells[1].c] = pair[1];
+
+                dominoesList.push({
+                    id: `dom-${t.id}`,
+                    v1: pair[0],
+                    v2: pair[1],
+                    rotation: 0,
+                    placed: false
+                });
+            });
+
+            const regionGrid = Array(R).fill(0).map(() => Array(C).fill(-1));
+            let currentRegionId = 0;
+            
+            let targetRegions = diff === 'easy' ? Math.max(2, Math.floor(numDominoes * 0.8)) :
+                                diff === 'medium' ? Math.max(3, Math.floor(numDominoes * 0.7)) :
+                                Math.max(4, Math.floor(numDominoes * 0.6));
+                                
+            const validCells = [];
+            for(let r=0; r<R; r++) {
+                for(let c=0; c<C; c++) {
+                    if(mask[r][c] === 1) validCells.push({r,c});
+                }
+            }
+            validCells.sort(() => Math.random() - 0.5);
+            
+            for(let i=0; i<Math.min(targetRegions, validCells.length); i++) {
+                let cell = validCells[i];
+                regionGrid[cell.r][cell.c] = currentRegionId++;
+            }
+            
+            let changed = true;
+            while(changed) {
+                changed = false;
+                let snapshot = regionGrid.map(row => [...row]);
+                
+                for(let r=0; r<R; r++) {
+                    for(let c=0; c<C; c++) {
+                        if(mask[r][c] === 1 && snapshot[r][c] === -1) {
+                            let neighbors = [];
+                            [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => {
+                                let nr = r+dr, nc = c+dc;
+                                if(nr>=0 && nr<R && nc>=0 && nc<C && snapshot[nr][nc] !== -1) {
+                                    neighbors.push(snapshot[nr][nc]);
+                                }
+                            });
+                            
+                            if(neighbors.length > 0) {
+                                regionGrid[r][c] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            const regionCellsMap = [];
+            for(let id=0; id<currentRegionId; id++) {
+                let cells = [];
+                for(let r=0; r<R; r++) {
+                    for(let c=0; c<C; c++) {
+                        if(regionGrid[r][c] === id) cells.push({r, c});
+                    }
+                }
+                if(cells.length > 0) regionCellsMap.push({ id, cells });
+            }
+
+            let colorIdx = 0;
+            const regionsList = regionCellsMap.map(reg => {
+                const values = reg.cells.map(cell => solutionValues[cell.r][cell.c]);
+                const sum = values.reduce((a, b) => a + b, 0);
+                const allEqual = values.length > 1 && values.every(v => v === values[0]);
+                const allUnique = values.length > 1 && (new Set(values)).size === values.length;
+
+                let possibleRules = [];
+                
+                if (diff === 'easy') {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                } else if (diff === 'medium') {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                    if (allUnique) possibleRules.push({ type: 'NOT_EQUAL', target: null, label: '≠' });
+                } else {
+                    possibleRules.push({ type: 'SUM', target: sum, label: sum.toString() });
+                    if (allEqual) possibleRules.push({ type: 'EQUAL', target: null, label: '=' });
+                    if (allUnique) possibleRules.push({ type: 'NOT_EQUAL', target: null, label: '≠' });
+                    if (sum < 15) {
+                        let ltTarget = sum + Math.floor(Math.random() * 3) + 1;
+                        possibleRules.push({ type: 'LESS_THAN', target: ltTarget, label: `<${ltTarget}` });
+                    }
+                    if (sum > 6) {
+                        let gtTarget = sum - Math.floor(Math.random() * 3) - 1;
+                        possibleRules.push({ type: 'GREATER_THAN', target: gtTarget, label: `>${gtTarget}` });
+                    }
+                }
+
+                let nonSum = possibleRules.filter(r => r.type !== 'SUM');
+                let selectedRule = (nonSum.length > 0 && Math.random() < 0.6) ? nonSum[Math.floor(Math.random() * nonSum.length)] : possibleRules[Math.floor(Math.random() * possibleRules.length)];
+
+                let badgeCell = reg.cells[0];
+                for (let c of reg.cells) {
+                    if (c.r > badgeCell.r || (c.r === badgeCell.r && c.c > badgeCell.c)) {
+                        badgeCell = c;
+                    }
+                }
+
+                const regData = {
+                    id: reg.id,
+                    cells: reg.cells,
+                    rule: selectedRule.type,
+                    target: selectedRule.target,
+                    label: selectedRule.label,
+                    color: REGION_PALETTE[colorIdx % REGION_PALETTE.length],
+                    badgeCell: badgeCell,
+                    satisfied: false
+                };
+                colorIdx++;
+                return regData;
+            });
+
+            GameState.board = Array(R).fill(null).map((_, r) => 
+                Array(C).fill(null).map((_, c) => {
+                    if (mask[r][c] === 0) return null;
+                    return { row: r, col: c, regionId: regionGrid[r][c], placedDominoId: null, pipValue: null };
+                })
+            );
+
+            GameState.regions = regionsList;
+            GameState.dominoes = dominoesList;
+            GameState.selectedDominoId = null;
+            
+            startTimer();
             renderBoard();
-            saveGameState();
-          }
+            renderTray();
+            validateBoard();
+            saveGame();
         }
-      }
 
-      activeDrag = null;
-    }
+        function updateBoardCellSize() {
+            const scrollContainer = document.getElementById('board-scroll-container');
+            if (!scrollContainer || !GameState.rows || !GameState.cols) return;
 
-    // --- TIMER SYSTEM ---
-    function startTimer() {
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (!isSolved) {
-          elapsedSeconds++;
-          document.getElementById('timer-display').innerText = formatTime(elapsedSeconds);
+            const rect = scrollContainer.getBoundingClientRect();
+            // Account for padding and give board a bit of breathing room
+            const availWidth = rect.width - 32; 
+            const availHeight = rect.height - 32;
+
+            if (availWidth <= 0 || availHeight <= 0) return;
+
+            const maxCellWidth = availWidth / GameState.cols;
+            const maxCellHeight = availHeight / GameState.rows;
+
+            let calcSize = Math.min(maxCellWidth, maxCellHeight);
+            calcSize = Math.max(24, Math.min(64, Math.floor(calcSize))); // Hard clamp to reasonable sizes
+
+            document.documentElement.style.setProperty('--cell-size', `${calcSize}px`);
+            
+            // Adjust tray piece size based on viewport width to match board scale roughly
+            const trayBase = Math.max(28, Math.min(44, window.innerWidth / 15));
+            document.documentElement.style.setProperty('--tray-size', `${trayBase}px`);
         }
-      }, 1000);
-    }
 
-    function formatTime(sec) {
-      const m = Math.floor(sec / 60).toString().padStart(2, '0');
-      const s = (sec % 60).toString().padStart(2, '0');
-      return `${m}:${s}`;
-    }
-
-    // --- LOCAL STORAGE & GAME SAVING ---
-    const STORAGE_KEY = 'nyt_pips_save_v4';
-    const STATS_KEY = 'nyt_pips_stats_v4';
-
-    function saveGameState() {
-      const state = {
-        diff: currentDiff,
-        puzzle: currentPuzzle,
-        placedDominoes,
-        trayDominoes,
-        elapsedSeconds,
-        isSolved
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-
-    function loadGameState() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return false;
-      try {
-        const state = JSON.parse(saved);
-        currentDiff = state.diff;
-        
-        // Restore grid map
-        currentPuzzle = state.puzzle;
-        currentPuzzle.gridMap = new Map(currentPuzzle.gridMap);
-
-        placedDominoes = state.placedDominoes || [];
-        trayDominoes = state.trayDominoes || [];
-        elapsedSeconds = state.elapsedSeconds || 0;
-        isSolved = state.isSolved || false;
-
-        document.getElementById('timer-display').innerText = formatTime(elapsedSeconds);
-        updateDiffButtons();
-        renderBoard();
-        startTimer();
-        return true;
-      } catch(e) {
-        return false;
-      }
-    }
-
-    function saveWinStats() {
-      let stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
-      if (!stats[currentDiff]) {
-        stats[currentDiff] = { wins: 0, bestTime: Infinity, totalTime: 0 };
-      }
-      const diffStats = stats[currentDiff];
-      diffStats.wins += 1;
-      diffStats.totalTime += elapsedSeconds;
-      if (elapsedSeconds < diffStats.bestTime) diffStats.bestTime = elapsedSeconds;
-
-      localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-    }
-
-    function renderStats() {
-      const stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
-      const grid = document.getElementById('stats-grid');
-      grid.innerHTML = '';
-
-      ['easy', 'medium', 'hard'].forEach(d => {
-        const st = stats[d] || { wins: 0, bestTime: Infinity, totalTime: 0 };
-        const avg = st.wins > 0 ? Math.round(st.totalTime / st.wins) : 0;
-        const best = st.bestTime === Infinity ? '--:--' : formatTime(st.bestTime);
-
-        const card = document.createElement('div');
-        card.className = 'bg-slate-50 border border-slate-200 rounded-2xl p-3 text-center space-y-1';
-        card.innerHTML = `
-          <div class="font-bold text-xs uppercase text-slate-500">${d}</div>
-          <div class="text-xl font-extrabold text-slate-800">${st.wins} <span class="text-xs text-slate-400 font-normal">wins</span></div>
-          <div class="text-[11px] text-slate-500">Best: <span class="font-mono font-semibold text-slate-700">${best}</span></div>
-          <div class="text-[11px] text-slate-500">Avg: <span class="font-mono font-semibold text-slate-700">${st.wins > 0 ? formatTime(avg) : '--:--'}</span></div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    // --- BUTTON EVENT LISTENERS ---
-    function updateDiffButtons() {
-      document.querySelectorAll('.btn-diff').forEach(btn => {
-        if (btn.dataset.diff === currentDiff) {
-          btn.className = 'btn-diff px-3 py-1 rounded-lg transition font-bold text-xs sm:text-sm bg-white text-slate-900 shadow-sm';
-        } else {
-          btn.className = 'btn-diff px-3 py-1 rounded-lg transition font-medium text-xs sm:text-sm text-slate-600 hover:text-slate-900';
+        function renderPips(value) {
+            if (value === 0) return '<div class="pip-face"></div>';
+            
+            let dots = '';
+            // Helper for absolute positioning
+            const p = (x, y) => `<div class="pip" style="left: ${x}%; top: ${y}%;"></div>`;
+            
+            // Standard domino/dice faces hardcoded
+            switch(value) {
+                case 1: dots = p(50, 50); break;
+                case 2: dots = p(25, 25) + p(75, 75); break;
+                case 3: dots = p(25, 25) + p(50, 50) + p(75, 75); break;
+                case 4: dots = p(25, 25) + p(75, 25) + p(25, 75) + p(75, 75); break;
+                case 5: dots = p(25, 25) + p(75, 25) + p(50, 50) + p(25, 75) + p(75, 75); break;
+                case 6: dots = p(25, 25) + p(25, 50) + p(25, 75) + p(75, 25) + p(75, 50) + p(75, 75); break;
+            }
+            
+            return `<div class="pip-face">${dots}</div>`;
         }
-      });
-    }
 
-    function startNewGame(diff = currentDiff) {
-      currentDiff = diff;
-      updateDiffButtons();
-      isSolved = false;
-      elapsedSeconds = 0;
-      document.getElementById('timer-display').innerText = '00:00';
+        function createDominoElement(domino, isPlaced = false) {
+            const el = document.createElement('div');
+            el.className = `domino-tile flex cursor-pointer ${domino.id === GameState.selectedDominoId && !isPlaced ? 'selected' : ''}`;
+            el.dataset.id = domino.id;
 
-      currentPuzzle = generatePuzzle(currentDiff);
-      placedDominoes = [];
-      trayDominoes = [...currentPuzzle.trayDominoes];
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const isFlipped = domino.rotation === 180 || domino.rotation === 270;
+            
+            const val1 = isFlipped ? domino.v2 : domino.v1;
+            const val2 = isFlipped ? domino.v1 : domino.v2;
+            
+            if (isPlaced) {
+                el.style.width = isVertical ? '100%' : '200%';
+                el.style.height = isVertical ? '200%' : '100%';
+                el.style.position = 'absolute';
+                el.style.top = '0';
+                el.style.left = '0';
+            } else {
+                // Dynamically sized based on CSS var set in updateBoardCellSize
+                el.style.width = isVertical ? 'var(--tray-size)' : 'calc(var(--tray-size) * 2)';
+                el.style.height = isVertical ? 'calc(var(--tray-size) * 2)' : 'var(--tray-size)';
+            }
+            
+            if (isVertical) {
+                el.classList.add('flex-col');
+                el.innerHTML = `
+                    <div class="flex-1 w-full relative z-10">${renderPips(val1)}</div>
+                    <div class="domino-divider-h"></div>
+                    <div class="flex-1 w-full relative z-10">${renderPips(val2)}</div>
+                `;
+            } else {
+                el.classList.add('flex-row');
+                el.innerHTML = `
+                    <div class="flex-1 h-full relative z-10">${renderPips(val1)}</div>
+                    <div class="domino-divider-v"></div>
+                    <div class="flex-1 h-full relative z-10">${renderPips(val2)}</div>
+                `;
+            }
 
-      renderBoard();
-      startTimer();
-      saveGameState();
-    }
+            el.addEventListener('mousedown', (e) => handleDominoInteraction(e, domino, isPlaced));
+            el.addEventListener('touchstart', (e) => handleDominoInteraction(e, domino, isPlaced), {passive: false});
 
-    document.querySelectorAll('.btn-diff').forEach(btn => {
-      btn.addEventListener('click', () => {
-        sound.playClick();
-        startNewGame(btn.dataset.diff);
-      });
-    });
+            return el;
+        }
 
-    document.getElementById('btn-new').addEventListener('click', () => {
-      sound.playClick();
-      startNewGame();
-    });
+        function renderBoard() {
+            const container = document.getElementById('board-container');
+            container.innerHTML = '';
 
-    document.getElementById('btn-restart').addEventListener('click', () => {
-      sound.playClick();
-      trayDominoes = [...trayDominoes, ...placedDominoes.map(p => ({
-        id: p.dominoId || p.id,
-        val1: p.val1,
-        val2: p.val2,
-        rot: p.rot
-      }))];
-      placedDominoes = [];
-      renderBoard();
-      saveGameState();
-    });
+            const gridEl = document.createElement('div');
+            gridEl.className = 'board-grid';
+            gridEl.style.gridTemplateColumns = `repeat(${GameState.cols}, 1fr)`;
 
-    document.getElementById('btn-sound').addEventListener('click', () => {
-      sound.enabled = !sound.enabled;
-      document.getElementById('icon-sound-on').classList.toggle('hidden', !sound.enabled);
-      document.getElementById('icon-sound-off').classList.toggle('hidden', sound.enabled);
-    });
+            function getBorderStyles(r, c, regionId) {
+                let borders = [];
+                const color = GameState.regions.find(reg => reg.id === regionId).color.border;
+                const outerBorder = `2px dashed ${color}`;
+                const innerBorder = `1px solid rgba(0, 0, 0, 0.15)`; 
+                
+                borders.push((r === 0 || GameState.board[r-1][c] === null || GameState.board[r-1][c].regionId !== regionId) ? `border-top: ${outerBorder}` : `border-top: ${innerBorder}`);
+                borders.push((r === GameState.rows-1 || GameState.board[r+1][c] === null || GameState.board[r+1][c].regionId !== regionId) ? `border-bottom: ${outerBorder}` : `border-bottom: ${innerBorder}`);
+                borders.push((c === 0 || GameState.board[r][c-1] === null || GameState.board[r][c-1].regionId !== regionId) ? `border-left: ${outerBorder}` : `border-left: ${innerBorder}`);
+                borders.push((c === GameState.cols-1 || GameState.board[r][c+1] === null || GameState.board[r][c+1].regionId !== regionId) ? `border-right: ${outerBorder}` : `border-right: ${innerBorder}`);
+                
+                return borders.join('; ');
+            }
 
-    document.getElementById('btn-stats').addEventListener('click', () => {
-      sound.playClick();
-      renderStats();
-      document.getElementById('stats-modal').classList.remove('hidden');
-    });
+            for (let r = 0; r < GameState.rows; r++) {
+                for (let c = 0; c < GameState.cols; c++) {
+                    const cell = GameState.board[r][c];
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'cell-item';
+                    cellEl.dataset.row = r;
+                    cellEl.dataset.col = c;
 
-    document.getElementById('btn-close-stats').addEventListener('click', () => {
-      document.getElementById('stats-modal').classList.add('hidden');
-    });
+                    if (cell === null) {
+                        cellEl.classList.add('cell-empty');
+                    } else {
+                        const region = GameState.regions.find(rg => rg.id === cell.regionId);
+                        
+                        cellEl.style.backgroundColor = region.color.bg;
+                        cellEl.style.cssText += getBorderStyles(r, c, region.id);
 
-    document.getElementById('btn-reset-stats').addEventListener('click', () => {
-      if (confirm('Are you sure you want to reset all win statistics?')) {
-        localStorage.removeItem(STATS_KEY);
-        renderStats();
-      }
-    });
+                        cellEl.addEventListener('mouseenter', () => handleCellHover(r, c, true));
+                        cellEl.addEventListener('mouseleave', () => handleCellHover(r, c, false));
 
-    document.getElementById('btn-win-next').addEventListener('click', () => {
-      const modal = document.getElementById('win-modal');
-      const card = document.getElementById('win-modal-card');
-      card.classList.remove('scale-100', 'opacity-100');
-      card.classList.add('scale-95', 'opacity-0');
-      setTimeout(() => {
-        modal.classList.add('hidden');
-        startNewGame();
-      }, 150);
-    });
+                        if (region.badgeCell.r === r && region.badgeCell.c === c) {
+                            const badge = document.createElement('div');
+                            badge.className = 'region-badge';
+                            badge.style.backgroundColor = region.color.badge;
+                            badge.innerHTML = `<div class="region-badge-inner">${region.label}</div>`;
+                            cellEl.appendChild(badge);
+                        }
 
-    // Window Resize Handler
-    window.addEventListener('resize', () => {
-      if (currentPuzzle) renderBoard();
-    });
+                        if (cell.placedDominoId !== null) {
+                            const domino = GameState.dominoes.find(d => d.id === cell.placedDominoId);
+                            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+                            const isAnchor = isVertical ? 
+                                (r === 0 || !GameState.board[r-1][c] || GameState.board[r-1][c].placedDominoId !== domino.id) : 
+                                (c === 0 || !GameState.board[r][c-1] || GameState.board[r][c-1].placedDominoId !== domino.id);
 
-    // --- INITIALIZATION ---
-    window.onload = () => {
-      if (!loadGameState()) {
-        startNewGame('easy');
-      }
-    };
-  </script>
+                            if (isAnchor) {
+                                const domEl = createDominoElement(domino, true);
+                                if (domino.id === GameState.lastPlacedDominoId) {
+                                    domEl.classList.add('animate-pop');
+                                }
+                                cellEl.appendChild(domEl);
+                            }
+                        }
+                    }
+                    gridEl.appendChild(cellEl);
+                }
+            }
+
+            container.appendChild(gridEl);
+            updateTilesCount();
+            updateBoardCellSize();
+            GameState.lastPlacedDominoId = null;
+        }
+
+        function renderTray() {
+            const tray = document.getElementById('tiles-tray');
+            tray.innerHTML = '';
+            
+            const unplaced = GameState.dominoes.filter(d => !d.placed);
+            
+            if (unplaced.length === 0) {
+                tray.innerHTML = `<div class="w-full text-center text-sm text-slate-400 italic py-8">All dominoes placed!</div>`;
+                return;
+            }
+
+            unplaced.forEach(domino => {
+                tray.appendChild(createDominoElement(domino, false));
+            });
+        }
+
+        function updateTilesCount() {
+            document.getElementById('tiles-count').innerText = GameState.dominoes.filter(d => !d.placed).length;
+        }
+
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let activeDragElement = null;
+
+        function handleDominoInteraction(e, domino, isBoardDomino) {
+            // Prevent zooming/scrolling on mobile while engaging piece
+            if (e.type === 'touchstart' && e.cancelable) e.preventDefault(); 
+
+            const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+            const startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            let isDraggingStarted = false;
+            const dragSourceEl = e.currentTarget;
+
+            const onPointerMove = (moveEv) => {
+                if (moveEv.type === 'touchmove' && moveEv.cancelable) moveEv.preventDefault();
+
+                const currentX = moveEv.type === 'touchmove' ? moveEv.touches[0].clientX : moveEv.clientX;
+                const currentY = moveEv.type === 'touchmove' ? moveEv.touches[0].clientY : moveEv.clientY;
+                const dist = Math.hypot(currentX - startX, currentY - startY);
+
+                if (dist > 5 && !isDraggingStarted) {
+                    isDraggingStarted = true;
+                    cleanup();
+                    GameState.selectedDominoId = domino.id;
+                    startDrag(moveEv, domino, startX, startY, dragSourceEl);
+
+                    if (isBoardDomino) {
+                        removeDominoFromBoard(domino.id, false); 
+                    } else {
+                        renderTray();
+                    }
+                }
+            };
+
+            const onPointerUp = () => {
+                cleanup();
+                if (!isDraggingStarted) {
+                    if (isBoardDomino) {
+                        removeDominoFromBoard(domino.id, true);
+                    } else {
+                        if (GameState.selectedDominoId === domino.id) {
+                            domino.rotation = (domino.rotation + 90) % 360;
+                            AudioFX.playRotate();
+                            saveGame();
+                        } else {
+                            GameState.selectedDominoId = domino.id;
+                            AudioFX.playClick();
+                        }
+                        renderTray();
+                    }
+                }
+            };
+
+            const cleanup = () => {
+                document.removeEventListener('mousemove', onPointerMove);
+                document.removeEventListener('touchmove', onPointerMove);
+                document.removeEventListener('mouseup', onPointerUp);
+                document.removeEventListener('touchend', onPointerUp);
+            };
+
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('touchmove', onPointerMove, { passive: false });
+            document.addEventListener('mouseup', onPointerUp);
+            document.addEventListener('touchend', onPointerUp);
+        }
+
+        function startDrag(e, domino, startX, startY, sourceEl) {
+            GameState.isDragging = true;
+            GameState.draggedDominoId = domino.id;
+
+            const rect = sourceEl.getBoundingClientRect();
+            dragOffsetX = startX - rect.left;
+            dragOffsetY = startY - rect.top;
+
+            activeDragElement = sourceEl.cloneNode(true);
+            activeDragElement.classList.add('dragging');
+            activeDragElement.style.position = 'absolute';
+            
+            activeDragElement.style.width = `${rect.width}px`;
+            activeDragElement.style.height = `${rect.height}px`;
+            activeDragElement.style.left = `${rect.left}px`;
+            activeDragElement.style.top = `${rect.top}px`;
+            activeDragElement.style.margin = '0';
+            activeDragElement.style.zIndex = '9999';
+            
+            sourceEl.style.opacity = '0.3';
+            document.getElementById('drag-layer').appendChild(activeDragElement);
+
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('touchmove', onDragMove, {passive: false});
+            document.addEventListener('mouseup', onDragEnd);
+            document.addEventListener('touchend', onDragEnd);
+        }
+
+        function onDragMove(e) {
+            if (!GameState.isDragging || !activeDragElement) return;
+            if (e.cancelable) e.preventDefault();
+
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+            activeDragElement.style.left = `${clientX - dragOffsetX}px`;
+            activeDragElement.style.top = `${clientY - dragOffsetY}px`;
+
+            // Adjust elements below calculation to ignore the drag layer itself
+            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            let hoveredCell = null;
+            for (let el of elementsBelow) {
+                if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
+                    hoveredCell = el;
+                    break;
+                }
+            }
+
+            if (hoveredCell) {
+                const r = parseInt(hoveredCell.dataset.row);
+                const c = parseInt(hoveredCell.dataset.col);
+                handleCellHover(r, c, true, GameState.draggedDominoId);
+            } else {
+                clearHoverPreviews();
+            }
+        }
+
+        function onDragEnd(e) {
+            if (!GameState.isDragging) return;
+            
+            const clientX = e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
+
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchend', onDragEnd);
+
+            if (activeDragElement) {
+                activeDragElement.remove();
+                activeDragElement = null;
+            }
+
+            const elementsBelow = document.elementsFromPoint(clientX, clientY);
+            let dropCell = null;
+            for (let el of elementsBelow) {
+                if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
+                    dropCell = el;
+                    break;
+                }
+            }
+
+            if (dropCell) {
+                const r = parseInt(dropCell.dataset.row);
+                const c = parseInt(dropCell.dataset.col);
+                GameState.selectedDominoId = GameState.draggedDominoId;
+                handleCellClick(r, c);
+            } else {
+                renderBoard(); // re-render board if dragged from there to clear opacity
+                renderTray();
+                saveGame();
+            }
+
+            GameState.isDragging = false;
+            GameState.draggedDominoId = null;
+            clearHoverPreviews();
+        }
+
+        function handleCellClick(r, c) {
+            const dominoId = GameState.selectedDominoId;
+            if (!dominoId) return;
+
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino || domino.placed) return;
+
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const targetA = { r, c };
+            const targetB = isVertical ? { r: r + 1, c } : { r, c: c + 1 };
+
+            if (targetB.r >= GameState.rows || targetB.c >= GameState.cols) {
+                showToast("Doesn't fit here!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            if (GameState.board[targetA.r][targetA.c] === null || GameState.board[targetB.r][targetB.c] === null) {
+                showToast("Invalid space!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            if (GameState.board[targetA.r][targetA.c].placedDominoId !== null ||
+                GameState.board[targetB.r][targetB.c].placedDominoId !== null) {
+                showToast("Space occupied!");
+                AudioFX.playError();
+                renderBoard();
+                renderTray();
+                return;
+            }
+
+            const isFlipped = domino.rotation === 180 || domino.rotation === 270;
+            const valA = isFlipped ? domino.v2 : domino.v1;
+            const valB = isFlipped ? domino.v1 : domino.v2;
+
+            GameState.board[targetA.r][targetA.c].placedDominoId = domino.id;
+            GameState.board[targetA.r][targetA.c].pipValue = valA;
+            
+            GameState.board[targetB.r][targetB.c].placedDominoId = domino.id;
+            GameState.board[targetB.r][targetB.c].pipValue = valB;
+
+            domino.placed = true;
+            GameState.selectedDominoId = null;
+            GameState.lastPlacedDominoId = domino.id;
+
+            AudioFX.playSnap();
+            renderBoard();
+            renderTray();
+            validateBoard();
+            saveGame();
+        }
+
+        function handleCellHover(r, c, isEnter, dragId = null) {
+            clearHoverPreviews();
+            const dominoId = dragId || GameState.selectedDominoId;
+            if (!isEnter || !dominoId) return;
+
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino || domino.placed) return;
+
+            const isVertical = domino.rotation === 90 || domino.rotation === 270;
+            const targetB = isVertical ? { r: r + 1, c } : { r, c: c + 1 };
+            const fitsBounds = (targetB.r < GameState.rows && targetB.c < GameState.cols);
+            
+            let isValid = fitsBounds;
+            if (isValid) {
+                const cellA = GameState.board[r][c];
+                const cellB = GameState.board[targetB.r][targetB.c];
+                if (cellA === null || cellB === null || cellA.placedDominoId !== null || cellB.placedDominoId !== null) {
+                    isValid = false;
+                }
+            }
+
+            const className = isValid ? 'cell-hover-valid' : 'cell-hover-invalid';
+            const elA = document.querySelector(`.cell-item[data-row="${r}"][data-col="${c}"]`);
+            if (elA) elA.classList.add(className);
+
+            if (fitsBounds) {
+                const elB = document.querySelector(`.cell-item[data-row="${targetB.r}"][data-col="${targetB.c}"]`);
+                if (elB) elB.classList.add(className);
+            }
+        }
+
+        function clearHoverPreviews() {
+            document.querySelectorAll('.cell-item').forEach(el => {
+                el.classList.remove('cell-hover-valid', 'cell-hover-invalid');
+            });
+        }
+
+        function removeDominoFromBoard(dominoId, updateUI = true) {
+            const domino = GameState.dominoes.find(d => d.id === dominoId);
+            if (!domino) return;
+
+            for (let r = 0; r < GameState.rows; r++) {
+                for (let c = 0; c < GameState.cols; c++) {
+                    if (GameState.board[r][c] && GameState.board[r][c].placedDominoId === dominoId) {
+                        GameState.board[r][c].placedDominoId = null;
+                        GameState.board[r][c].pipValue = null;
+                    }
+                }
+            }
+
+            domino.placed = false;
+            
+            if (updateUI) {
+                AudioFX.playClick();
+                renderBoard();
+                renderTray();
+                validateBoard();
+                saveGame();
+            }
+        }
+
+        function validateBoard() {
+            let allRegionsSatisfied = true;
+            let cellsFilled = 0;
+
+            GameState.regions.forEach(region => {
+                const values = [];
+                let isFull = true;
+
+                region.cells.forEach(cell => {
+                    const bCell = GameState.board[cell.r][cell.c];
+                    if (bCell.pipValue !== null) {
+                        values.push(bCell.pipValue);
+                        cellsFilled++;
+                    } else {
+                        isFull = false;
+                    }
+                });
+
+                let satisfied = false;
+                if (values.length > 0) {
+                    const sum = values.reduce((a, b) => a + b, 0);
+                    switch (region.rule) {
+                        case 'SUM': satisfied = isFull ? sum === region.target : sum <= region.target; break;
+                        case 'EQUAL': satisfied = values.every(v => v === values[0]); break;
+                        case 'NOT_EQUAL': satisfied = (new Set(values)).size === values.length; break;
+                        case 'LESS_THAN': satisfied = sum < region.target; break;
+                        case 'GREATER_THAN': satisfied = isFull ? sum > region.target : true; break;
+                        case 'NONE': satisfied = true; break;
+                    }
+                } else {
+                    satisfied = true;
+                }
+
+                region.satisfied = satisfied && isFull;
+                if (!region.satisfied) allRegionsSatisfied = false;
+
+                region.cells.forEach(c => {
+                    const el = document.querySelector(`.cell-item[data-row="${c.r}"][data-col="${c.c}"]`);
+                    if (el) {
+                        if (region.rule !== 'NONE' && isFull) {
+                            if (satisfied) {
+                                el.style.animation = 'pulse-border 2s infinite';
+                            } else {
+                                el.style.animation = 'none';
+                                el.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                            }
+                        } else {
+                            el.style.animation = 'none';
+                            el.style.borderColor = region.color.border; 
+                        }
+                    }
+                });
+            });
+
+            const actualTotalCells = GameState.regions.reduce((acc, r) => acc + r.cells.length, 0);
+
+            if (cellsFilled === actualTotalCells) {
+                if (allRegionsSatisfied) triggerVictory();
+                else showToast("Board is full, but some rules aren't met!");
+            }
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('status-toast');
+            el.innerText = msg;
+            el.classList.remove('opacity-0');
+            el.classList.add('opacity-100', 'translate-y-[-20px]');
+            setTimeout(() => {
+                el.classList.remove('opacity-100', 'translate-y-[-20px]');
+                el.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        function startTimer(resume = false) {
+            clearInterval(GameState.timerInterval);
+            if (!resume) GameState.timerSeconds = 0;
+            updateTimerDisplay();
+            GameState.timerInterval = setInterval(() => {
+                GameState.timerSeconds++;
+                updateTimerDisplay();
+                if (GameState.timerSeconds % 5 === 0) saveGame();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(GameState.timerInterval);
+            saveGame();
+        }
+
+        function updateTimerDisplay() {
+            const m = String(Math.floor(GameState.timerSeconds / 60)).padStart(2, '0');
+            const s = String(GameState.timerSeconds % 60).padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        }
+
+        function triggerVictory() {
+            stopTimer();
+            AudioFX.playWin();
+
+            const diff = GameState.difficulty;
+            const st = GameState.stats[diff];
+            st.played++;
+            st.won++;
+            st.totalTime += GameState.timerSeconds;
+            if (!st.bestTime || GameState.timerSeconds < st.bestTime) st.bestTime = GameState.timerSeconds;
+            
+            saveStats();
+            clearSave();
+
+            document.getElementById('victory-diff-label').innerText = `${diff} PUZZLE SOLVED`;
+            document.getElementById('victory-time').innerText = formatTime(GameState.timerSeconds);
+            document.getElementById('victory-best').innerText = formatTime(st.bestTime);
+            
+            const modal = document.getElementById('modal-victory');
+            const card = document.getElementById('victory-card');
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                card.classList.remove('scale-95', 'opacity-0');
+                card.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function formatTime(s) {
+            if (!s && s !== 0) return '--:--';
+            return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        }
+
+        function renderStatsModal() {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '';
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                const s = GameState.stats[diff];
+                const avg = s.won > 0 ? Math.round(s.totalTime / s.won) : 0;
+                container.innerHTML += `
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold capitalize text-slate-800">${diff}</span>
+                            <span class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">${s.won} Wins</span>
+                        </div>
+                        <div class="flex justify-between text-sm text-slate-500">
+                            <span>Avg: <strong class="text-slate-700">${s.won ? formatTime(avg) : '--'}</strong></span>
+                            <span>Best: <strong class="text-emerald-600">${s.bestTime ? formatTime(s.bestTime) : '--'}</strong></span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            AudioFX.init();
+            loadStats();
+
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.diff-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                        b.classList.add('text-slate-600');
+                    });
+                    btn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                    btn.classList.remove('text-slate-600');
+                    generatePuzzle(btn.dataset.diff);
+                });
+            });
+
+            document.getElementById('btn-new-game').addEventListener('click', () => generatePuzzle(GameState.difficulty));
+            
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                GameState.dominoes.forEach(d => { d.placed = false; d.rotation = 0; });
+                for (let r = 0; r < GameState.rows; r++) {
+                    for (let c = 0; c < GameState.cols; c++) {
+                        if (GameState.board[r][c]) {
+                            GameState.board[r][c].placedDominoId = null;
+                            GameState.board[r][c].pipValue = null;
+                        }
+                    }
+                }
+                GameState.selectedDominoId = null;
+                renderBoard();
+                renderTray();
+                validateBoard();
+                saveGame();
+                AudioFX.playClick();
+            });
+
+            document.getElementById('btn-stats').addEventListener('click', () => {
+                renderStatsModal();
+                document.getElementById('modal-stats').classList.remove('hidden');
+            });
+            document.getElementById('btn-how-to-play').addEventListener('click', () => {
+                document.getElementById('modal-howto').classList.remove('hidden');
+            });
+            document.getElementById('btn-sound').addEventListener('click', function() {
+                AudioFX.muted = !AudioFX.muted;
+                this.innerHTML = AudioFX.muted ? '<i class="fa-solid fa-volume-xmark text-sm"></i>' : '<i class="fa-solid fa-volume-high text-sm"></i>';
+            });
+            document.querySelectorAll('.modal-close').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.fixed.inset-0').forEach(m => m.classList.add('hidden'));
+                });
+            });
+            document.getElementById('btn-victory-next').addEventListener('click', () => {
+                document.getElementById('modal-victory').classList.add('hidden');
+                generatePuzzle(GameState.difficulty);
+            });
+            document.getElementById('btn-reset-stats').addEventListener('click', () => {
+                if(confirm("Clear all statistics?")) {
+                    GameState.stats = { easy: {played:0,won:0,totalTime:0,bestTime:null}, medium: {played:0,won:0,totalTime:0,bestTime:null}, hard: {played:0,won:0,totalTime:0,bestTime:null} };
+                    saveStats();
+                    renderStatsModal();
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                updateBoardCellSize();
+            });
+
+            if (!loadGame()) {
+                document.querySelector('.diff-btn[data-diff="easy"]').click();
+            }
+            
+            document.body.addEventListener('click', () => AudioFX.init(), {once: true});
+            document.body.addEventListener('touchstart', () => AudioFX.init(), {once: true});
+        });
+    </script>
 </body>
 </html>
