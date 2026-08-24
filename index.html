@@ -49,10 +49,9 @@
         /* Domino & Pips Styling */
         .domino-tile {
             transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
-            touch-action: none;
+            touch-action: none; /* Prevents scroll hijacking on mobile */
             background-color: #ffffff;
             border-radius: 8px;
-            /* Authentic 3D look with clean edges matching reference */
             box-shadow: 0 3px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 4px 6px rgba(0, 0, 0, 0.05);
             position: relative;
             z-index: 10;
@@ -60,10 +59,12 @@
         }
         
         .domino-tile.dragging {
-            z-index: 50 !important;
+            z-index: 9999 !important;
+            pointer-events: none !important;
             transform: scale(1.15) translateY(-4px);
             box-shadow: 0 8px 0 0 #cbd5e1, inset 0 0 0 1px #e2e8f0, 0 12px 20px rgba(0, 0, 0, 0.15);
             opacity: 0.95;
+            margin: 0 !important;
         }
 
         .domino-tile.selected {
@@ -186,16 +187,6 @@
             height: 100%;
             pointer-events: none;
             z-index: 9999;
-        }
-
-        .domino-tile.dragging {
-            z-index: 9999 !important;
-            pointer-events: none !important;
-            position: fixed !important;
-            margin: 0 !important;
-            transform: scale(1.1) translateY(-4px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
-            opacity: 0.95;
         }
     </style>
 </head>
@@ -441,13 +432,13 @@
         };
 
         const REGION_PALETTE = [
-            { bg: '#d4a27f', border: '#b07040', text: 'white', badge: '#d35400' }, // Orange
-            { bg: '#a3b19b', border: '#708260', text: 'white', badge: '#556b2f' }, // Olive
-            { bg: '#919db4', border: '#607090', text: 'white', badge: '#1a3b5c' }, // Blue-gray
-            { bg: '#e5a5a5', border: '#c07070', text: 'white', badge: '#d81b60' }, // Pink
-            { bg: '#9bbdbd', border: '#609090', text: 'white', badge: '#00838f' }, // Teal
-            { bg: '#bfa3c4', border: '#9060a0', text: 'white', badge: '#8e44ad' }, // Purple
-            { bg: '#e5ccb8', border: '#c0a080', text: 'white', badge: '#a0522d' }, // Tan
+            { bg: '#d4a27f', border: '#b07040', text: 'white', badge: '#d35400' }, 
+            { bg: '#a3b19b', border: '#708260', text: 'white', badge: '#556b2f' }, 
+            { bg: '#919db4', border: '#607090', text: 'white', badge: '#1a3b5c' }, 
+            { bg: '#e5a5a5', border: '#c07070', text: 'white', badge: '#d81b60' }, 
+            { bg: '#9bbdbd', border: '#609090', text: 'white', badge: '#00838f' }, 
+            { bg: '#bfa3c4', border: '#9060a0', text: 'white', badge: '#8e44ad' }, 
+            { bg: '#e5ccb8', border: '#c0a080', text: 'white', badge: '#a0522d' }, 
         ];
 
         const GameState = {
@@ -462,8 +453,6 @@
             lastPlacedDominoId: null,
             timerSeconds: 0,
             timerInterval: null,
-            isDragging: false,
-            draggedDominoId: null,
             stats: {
                 easy: { played: 0, won: 0, totalTime: 0, bestTime: null },
                 medium: { played: 0, won: 0, totalTime: 0, bestTime: null },
@@ -536,9 +525,9 @@
             GameState.difficulty = diff;
             
             let numDominoes;
-            if (diff === 'easy') numDominoes = Math.floor(Math.random() * 2) + 4; // 4-5
-            else if (diff === 'medium') numDominoes = Math.floor(Math.random() * 3) + 7; // 7-9
-            else numDominoes = Math.floor(Math.random() * 4) + 11; // 11-14
+            if (diff === 'easy') numDominoes = Math.floor(Math.random() * 2) + 4; 
+            else if (diff === 'medium') numDominoes = Math.floor(Math.random() * 3) + 7; 
+            else numDominoes = Math.floor(Math.random() * 4) + 11; 
 
             const GRID_SIZE = 40;
             let tempGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(-1));
@@ -775,7 +764,6 @@
             if (!scrollContainer || !GameState.rows || !GameState.cols) return;
 
             const rect = scrollContainer.getBoundingClientRect();
-            // Account for padding and give board a bit of breathing room
             const availWidth = rect.width - 32; 
             const availHeight = rect.height - 32;
 
@@ -785,11 +773,10 @@
             const maxCellHeight = availHeight / GameState.rows;
 
             let calcSize = Math.min(maxCellWidth, maxCellHeight);
-            calcSize = Math.max(24, Math.min(64, Math.floor(calcSize))); // Hard clamp to reasonable sizes
+            calcSize = Math.max(24, Math.min(64, Math.floor(calcSize)));
 
             document.documentElement.style.setProperty('--cell-size', `${calcSize}px`);
             
-            // Adjust tray piece size based on viewport width to match board scale roughly
             const trayBase = Math.max(28, Math.min(44, window.innerWidth / 15));
             document.documentElement.style.setProperty('--tray-size', `${trayBase}px`);
         }
@@ -798,10 +785,8 @@
             if (value === 0) return '<div class="pip-face"></div>';
             
             let dots = '';
-            // Helper for absolute positioning
             const p = (x, y) => `<div class="pip" style="left: ${x}%; top: ${y}%;"></div>`;
             
-            // Standard domino/dice faces hardcoded
             switch(value) {
                 case 1: dots = p(50, 50); break;
                 case 2: dots = p(25, 25) + p(75, 75); break;
@@ -818,6 +803,7 @@
             const el = document.createElement('div');
             el.className = `domino-tile flex cursor-pointer ${domino.id === GameState.selectedDominoId && !isPlaced ? 'selected' : ''}`;
             el.dataset.id = domino.id;
+            el.style.touchAction = 'none';
 
             const isVertical = domino.rotation === 90 || domino.rotation === 270;
             const isFlipped = domino.rotation === 180 || domino.rotation === 270;
@@ -852,7 +838,7 @@
                 `;
             }
 
-            // Use PointerDown for unified mouse & touch support
+            // Centralized robust drag initiation
             el.addEventListener('pointerdown', (e) => handleDominoInteraction(e, domino, isPlaced));
 
             return el;
@@ -895,9 +881,6 @@
                         
                         cellEl.style.backgroundColor = region.color.bg;
                         cellEl.style.cssText += getBorderStyles(r, c, region.id);
-
-                        cellEl.addEventListener('mouseenter', () => handleCellHover(r, c, true));
-                        cellEl.addEventListener('mouseleave', () => handleCellHover(r, c, false));
 
                         if (region.badgeCell.r === r && region.badgeCell.c === c) {
                             const badge = document.createElement('div');
@@ -953,105 +936,114 @@
             document.getElementById('tiles-count').innerText = GameState.dominoes.filter(d => !d.placed).length;
         }
 
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
-        let activeDragElement = null;
-        let activeDragSourceEl = null;
+        /* 
+           --- NEW ROBUST DRAG AND DROP SYSTEM --- 
+           Utilizing Pointer Events mapped properly for mobile & desktop
+        */
+        const DragState = {
+            active: false,
+            domino: null,
+            sourceEl: null,
+            cloneEl: null,
+            startX: 0,
+            startY: 0,
+            offsetX: 0,
+            offsetY: 0,
+            isBoardDomino: false
+        };
 
         function handleDominoInteraction(e, domino, isBoardDomino) {
-            if (e.button !== undefined && e.button !== 0) return; // Only primary clicks
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
             e.preventDefault();
+            e.stopPropagation();
 
-            const startX = e.clientX;
-            const startY = e.clientY;
-            let isDraggingStarted = false;
-            const dragSourceEl = e.currentTarget;
+            const sourceEl = e.currentTarget;
+
+            // Setup state
+            DragState.active = false;
+            DragState.domino = domino;
+            DragState.sourceEl = sourceEl;
+            DragState.isBoardDomino = isBoardDomino;
+            DragState.startX = e.clientX;
+            DragState.startY = e.clientY;
+
+            // Capture the pointer strictly to this element
+            try { sourceEl.setPointerCapture(e.pointerId); } catch(err) {}
 
             const onPointerMove = (moveEv) => {
-                const dist = Math.hypot(moveEv.clientX - startX, moveEv.clientY - startY);
-
-                if (dist > 6 && !isDraggingStarted) {
-                    isDraggingStarted = true;
-                    GameState.selectedDominoId = domino.id;
-
-                    if (isBoardDomino) {
-                        removeDominoFromBoard(domino.id, false);
+                if (!DragState.active) {
+                    const dist = Math.hypot(moveEv.clientX - DragState.startX, moveEv.clientY - DragState.startY);
+                    if (dist > 5) {
+                        initiateDrag(moveEv);
                     }
-
-                    startDrag(moveEv.clientX, moveEv.clientY, domino, dragSourceEl);
                 }
 
-                if (isDraggingStarted) {
-                    onDragMove(moveEv);
+                if (DragState.active) {
+                    processDragMove(moveEv);
                 }
             };
 
             const onPointerUp = (upEv) => {
-                cleanup();
+                cleanup(upEv.pointerId);
 
-                if (isDraggingStarted) {
-                    onDragEnd(upEv);
+                if (DragState.active) {
+                    finalizeDrag(upEv);
                 } else {
-                    // Tap / Click action
-                    if (isBoardDomino) {
-                        removeDominoFromBoard(domino.id, true);
-                    } else {
-                        if (GameState.selectedDominoId === domino.id) {
-                            domino.rotation = (domino.rotation + 90) % 360;
-                            AudioFX.playRotate();
-                            saveGame();
-                        } else {
-                            GameState.selectedDominoId = domino.id;
-                            AudioFX.playClick();
-                        }
-                        renderTray();
-                    }
+                    processTap();
                 }
             };
 
-            const cleanup = () => {
-                window.removeEventListener('pointermove', onPointerMove);
-                window.removeEventListener('pointerup', onPointerUp);
-                window.removeEventListener('pointercancel', onPointerUp);
+            const cleanup = (pointerId) => {
+                sourceEl.removeEventListener('pointermove', onPointerMove);
+                sourceEl.removeEventListener('pointerup', onPointerUp);
+                sourceEl.removeEventListener('pointercancel', onPointerUp);
+                try { sourceEl.releasePointerCapture(pointerId); } catch(err) {}
             };
 
-            window.addEventListener('pointermove', onPointerMove, { passive: false });
-            window.addEventListener('pointerup', onPointerUp);
-            window.addEventListener('pointercancel', onPointerUp);
+            // Bind listeners directly to the touched element
+            sourceEl.addEventListener('pointermove', onPointerMove);
+            sourceEl.addEventListener('pointerup', onPointerUp);
+            sourceEl.addEventListener('pointercancel', onPointerUp);
         }
 
-        function startDrag(clientX, clientY, domino, sourceEl) {
-            GameState.isDragging = true;
-            GameState.draggedDominoId = domino.id;
-            activeDragSourceEl = sourceEl;
+        function initiateDrag(e) {
+            DragState.active = true;
+            GameState.selectedDominoId = DragState.domino.id;
 
-            // Clear any lingering drag clones
             const dragLayer = document.getElementById('drag-layer');
             dragLayer.innerHTML = '';
 
-            const rect = sourceEl.getBoundingClientRect();
-            dragOffsetX = clientX - rect.left;
-            dragOffsetY = clientY - rect.top;
+            const rect = DragState.sourceEl.getBoundingClientRect();
+            DragState.offsetX = e.clientX - rect.left;
+            DragState.offsetY = e.clientY - rect.top;
 
-            activeDragElement = sourceEl.cloneNode(true);
-            activeDragElement.classList.add('dragging');
-            activeDragElement.style.width = `${rect.width}px`;
-            activeDragElement.style.height = `${rect.height}px`;
-            activeDragElement.style.left = `${clientX - dragOffsetX}px`;
-            activeDragElement.style.top = `${clientY - dragOffsetY}px`;
+            DragState.cloneEl = DragState.sourceEl.cloneNode(true);
+            DragState.cloneEl.classList.add('dragging');
+            DragState.cloneEl.style.position = 'fixed';
+            DragState.cloneEl.style.pointerEvents = 'none'; // Critical for hit-testing beneath it
+            DragState.cloneEl.style.zIndex = '9999';
+            DragState.cloneEl.style.margin = '0';
+            
+            DragState.cloneEl.style.width = `${rect.width}px`;
+            DragState.cloneEl.style.height = `${rect.height}px`;
+            DragState.cloneEl.style.left = `${e.clientX - DragState.offsetX}px`;
+            DragState.cloneEl.style.top = `${e.clientY - DragState.offsetY}px`;
 
-            sourceEl.style.opacity = '0.25';
-            dragLayer.appendChild(activeDragElement);
+            dragLayer.appendChild(DragState.cloneEl);
+
+            // Hide the original visually instead of destroying it from DOM
+            DragState.sourceEl.style.opacity = '0';
         }
 
-        function onDragMove(e) {
-            if (!GameState.isDragging || !activeDragElement) return;
+        function processDragMove(e) {
+            if (!DragState.cloneEl) return;
 
-            activeDragElement.style.left = `${e.clientX - dragOffsetX}px`;
-            activeDragElement.style.top = `${e.clientY - dragOffsetY}px`;
+            DragState.cloneEl.style.left = `${e.clientX - DragState.offsetX}px`;
+            DragState.cloneEl.style.top = `${e.clientY - DragState.offsetY}px`;
 
             const elementsBelow = document.elementsFromPoint(e.clientX, e.clientY);
             let hoveredCell = null;
+            
             for (let el of elementsBelow) {
                 if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
                     hoveredCell = el;
@@ -1062,26 +1054,20 @@
             if (hoveredCell) {
                 const r = parseInt(hoveredCell.dataset.row);
                 const c = parseInt(hoveredCell.dataset.col);
-                handleCellHover(r, c, true, GameState.draggedDominoId);
+                handleCellHover(r, c, true, DragState.domino.id);
             } else {
                 clearHoverPreviews();
             }
         }
 
-        function onDragEnd(e) {
-            if (!GameState.isDragging) return;
-
-            const dragLayer = document.getElementById('drag-layer');
-            dragLayer.innerHTML = '';
-            activeDragElement = null;
-
-            if (activeDragSourceEl) {
-                activeDragSourceEl.style.opacity = '1';
-                activeDragSourceEl = null;
-            }
+        function finalizeDrag(e) {
+            document.getElementById('drag-layer').innerHTML = '';
+            DragState.sourceEl.style.opacity = '1';
+            clearHoverPreviews();
 
             const elementsBelow = document.elementsFromPoint(e.clientX, e.clientY);
             let dropCell = null;
+            
             for (let el of elementsBelow) {
                 if (el.classList.contains('cell-item') && !el.classList.contains('cell-empty')) {
                     dropCell = el;
@@ -1089,21 +1075,48 @@
                 }
             }
 
+            if (DragState.isBoardDomino) {
+                // Remove logically so space is freed for valid dropping evaluation
+                removeDominoFromBoard(DragState.domino.id, false);
+            }
+
             if (dropCell) {
                 const r = parseInt(dropCell.dataset.row);
                 const c = parseInt(dropCell.dataset.col);
-                GameState.selectedDominoId = GameState.draggedDominoId;
-                handleCellClick(r, c);
+                
+                GameState.selectedDominoId = DragState.domino.id;
+                handleCellClick(r, c); 
+                // handleCellClick re-renders and handles sound automatically
             } else {
+                // Drop failed or dropped out of bounds, send to tray
+                GameState.selectedDominoId = null;
+                AudioFX.playClick();
                 renderBoard();
                 renderTray();
+                validateBoard();
                 saveGame();
             }
 
-            GameState.isDragging = false;
-            GameState.draggedDominoId = null;
-            clearHoverPreviews();
+            DragState.active = false;
+            DragState.cloneEl = null;
         }
+
+        function processTap() {
+            if (DragState.isBoardDomino) {
+                removeDominoFromBoard(DragState.domino.id, true);
+            } else {
+                if (GameState.selectedDominoId === DragState.domino.id) {
+                    DragState.domino.rotation = (DragState.domino.rotation + 90) % 360;
+                    AudioFX.playRotate();
+                } else {
+                    GameState.selectedDominoId = DragState.domino.id;
+                    AudioFX.playClick();
+                }
+                renderTray();
+                saveGame();
+            }
+        }
+        /* --- END DRAG SYSTEM --- */
 
         function handleCellClick(r, c) {
             const dominoId = GameState.selectedDominoId;
